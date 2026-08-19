@@ -1,0 +1,232 @@
+# RYO Global Token Reasoning Layer
+
+RYO Global Token Reasoning Layer is a RYO-CHAN Hackathon app that turns market reads, news, or a user thesis into an inspectable decision: `CONFIRMED`, `WATCHLIST`, or `REJECTED`.
+
+It is not another RYO chatbot, wallet, DEX connector, or paper-trading app. It runs separately from the RYO app, calls RYO MCP/REST from the Rust backend, combines that market evidence with a news source or user-supplied thesis, and produces auditable decision receipts.
+
+The product question is:
+
+```text
+Should this market read change my view on this token?
+```
+
+Example output:
+
+```text
+{
+  "signal": "WATCHLIST",
+  "symbol": "BNB",
+  "confidence": 0.72,
+  "reasoning": "Market momentum is positive, but sentiment shift is incomplete and derivatives data is unavailable.",
+  "ryo_tools_used": ["market_overview", "deep_analysis", "compare_tokens"],
+  "unavailable_data": ["derivatives"],
+  "next_action": "Wait for confirmation before any downstream action"
+}
+```
+
+## Track Fit
+
+- Track 1: Autonomous Agents, if watch mode is enabled and used as a background reasoning loop.
+- Track 2: Dashboards & Interfaces, because the main screen ranks events by importance and explains why each one matters.
+
+## What It Does
+
+1. User selects a token such as `SOL`, `BTC`, `ETH`, or `BNB`.
+2. Backend searches global news through Tavily.
+3. Backend deduplicates and clusters stories into narratives.
+4. Backend calls RYO market intelligence:
+   - `market_overview`
+   - `scan_market`
+   - `analyze_token`
+   - `deep_analysis`
+   - `compare_tokens`
+   - `monitor_market_sentiment_shift`
+5. Backend optionally asks OpenAI for the final reasoning verdict.
+6. Stories are scored using available evidence only.
+7. The UI displays ranked buckets:
+   - Position-changing
+   - Watch closely
+   - Unverified or conflicting
+   - Noise
+8. Each card opens a decision receipt with sources, RYO calls, reasoning, missing data, confidence, and warnings.
+
+## Subscriptions
+
+Required:
+
+- RYO MCP/REST key from the organizers.
+- Tavily Free for global news search.
+- OpenAI API for the final reasoning verdict. The default model is `gpt-5.6-luna`; use `gpt-5.6-terra` if you want stronger reasoning and can spend more.
+
+Optional:
+
+- CoinGecko Demo API key as a backup market-data sanity check.
+- DeFiLlama for protocol and TVL context.
+- DexScreener for liquidity context.
+
+Not required:
+
+- TradingView API.
+- DEX execution API.
+- Wallet or live money infrastructure.
+
+## Why This Is Not a Wall of Charts
+
+Each card must answer:
+
+- What happened?
+- Why could it matter for this token?
+- Does RYO market intelligence confirm or contradict it?
+- What is missing?
+- What action should a cautious user consider: watch, investigate, wait, reduce risk, or no action?
+
+The app ranks evidence and shows an argument. Raw headline volume does not increase the score by itself.
+
+## Setup
+
+```bash
+cp .env.example .env
+```
+
+Then fill in:
+
+```bash
+RYO_MCP_KEY=your_builder_key
+TAVILY_API_KEY=your_tavily_key
+OPENAI_API_KEY=your_openai_key
+```
+
+Run:
+
+```bash
+cargo run
+```
+
+Open:
+
+```text
+http://127.0.0.1:8788
+```
+
+## API
+
+### `GET /health`
+
+Returns backend, RYO, Tavily, OpenAI, optional source, and watch-loop status.
+
+### `GET /api/tokens`
+
+Returns a small static token list for the UI. RYO remains the source of market intelligence.
+
+### `POST /api/pulse`
+
+Alias: `POST /reason`
+
+Body:
+
+```json
+{
+  "symbol": "BNB",
+  "timeframe": "24h",
+  "regions": ["Global", "Asia"],
+  "sources": ["Tavily", "Crypto-native"],
+  "thesis": "Market momentum is positive, but sentiment shift is incomplete and derivatives data is unavailable."
+}
+```
+
+Requires `RYO_MCP_KEY`, `TAVILY_API_KEY`, and `OPENAI_API_KEY`. Once those real keys are configured, it creates a decision receipt and stores it in memory for the running process. The response includes both the compact reasoning-layer output and the full receipt:
+
+```json
+{
+  "signal": "WATCHLIST",
+  "symbol": "BNB",
+  "confidence": 0.32,
+  "reasoning": "BNB has watch-level narratives, but the evidence does not yet force a position change.",
+  "ryo_tools_used": ["market_overview", "scan_market", "analyze_token"],
+  "unavailable_data": ["RYO market confirmation"],
+  "next_action": "wait for confirmation and keep the token on watch",
+  "reasoning_layer": {
+    "signal": "WATCHLIST",
+    "market_confirmation": "unavailable",
+    "run_id": "..."
+  }
+}
+```
+
+When required live keys are missing, the endpoint returns `428 missing_required_keys` and creates no receipt.
+
+### `GET /api/receipts`
+
+Alias: `GET /runs`
+
+Lists recent receipts.
+
+### `GET /api/receipts/:id`
+
+Alias: `GET /runs/:id`
+
+Returns one full receipt.
+
+### `GET /api/ryo/tools`
+
+Fetches the organizer-provided live RYO tool catalog. Use this before final integration:
+
+```bash
+curl -s "$RYO_MCP_URL/tools" \
+  -H "Authorization: Bearer $RYO_MCP_KEY" | jq
+```
+
+### `POST /api/watchlist`
+
+Body:
+
+```json
+{
+  "symbol": "SOL",
+  "interval_minutes": 15
+}
+```
+
+Adds a token to watch mode. Background checks run only when `APP_ENABLE_WATCH_LOOP=true`.
+
+### `DELETE /api/watchlist/:symbol`
+
+Removes a watched token.
+
+## Failure Handling
+
+This is directly aligned with the hackathon scoring.
+
+- Missing `RYO_MCP_KEY`, `TAVILY_API_KEY`, or `OPENAI_API_KEY`: `/reason` returns `428 missing_required_keys` and creates no receipt. The app waits for real credentials.
+- Upstream 429 or failed calls: the receipt becomes `partial` and the failing source is recorded under source availability.
+- Missing published time, region, language, or RYO evidence: the card lists those fields under `missing_data`.
+
+Never fabricate placeholder data. Never commit `.env`.
+
+## Demo Flow
+
+1. Open the dashboard.
+2. Show backend health and source status.
+3. Run a pulse for `SOL`.
+4. Open the top card and show the reasoning.
+5. Show source availability and RYO tool statuses.
+6. Add `SOL` to the watchlist.
+7. Explain that watch mode creates receipts only for material changes when enabled.
+
+## Submission Checklist
+
+- Public or judge-accessible repository.
+- Completed `.env.example` with no live secrets.
+- README section explaining failure handling.
+- Working app URL or one-command local start.
+- Demo video under 3 minutes.
+- Run artifacts from real-key runs, such as replayable receipt JSON copied from `/runs/:id`.
+
+## Organizer Questions
+
+- Please provide `RYO_MCP_KEY` and confirm the live `RYO_MCP_URL`.
+- Does the live API expose six tools or a larger tool catalog?
+- Can you share the exact `/tools` schema output for each tool?
+- What are the exact rate limits and expected retry behavior?
+- Should final reasoning output be JSON, UI, or both?
+- Can this reasoning layer hand off a verdict to the existing DEX/execution layer later, without us building execution in the hackathon?

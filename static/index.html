@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RYO Global Token Reasoning Layer</title>
+    <script>
+      (() => {
+        const theme = localStorage.getItem("gtp-theme") || "system";
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="icon"
+      href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="%2321283d"/><text x="32" y="39" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="900" fill="%23f0b84a">RYO</text></svg>'
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="side-rail" aria-label="Workspace">
+        <div class="brand-block">
+          <div class="brand-mark">RYO</div>
+          <div>
+            <h1>RYO Token Reasoning Layer</h1>
+            <p>Market reads to decisions</p>
+          </div>
+        </div>
+
+        <div class="theme-switch" role="group" aria-label="Theme">
+          <button type="button" data-theme-choice="light">Light</button>
+          <button type="button" data-theme-choice="system">System</button>
+          <button type="button" data-theme-choice="dark">Dark</button>
+        </div>
+
+        <div class="source-stack" id="healthStack">
+          <div class="source-line muted">Checking backend...</div>
+        </div>
+
+        <div class="history-block">
+          <div class="rail-title">Receipts</div>
+          <div id="receiptHistory" class="receipt-history">
+            <div class="empty-mini">No receipts yet</div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="workbench">
+        <section class="control-panel" aria-label="Pulse controls">
+          <form id="pulseForm">
+            <div class="field-row">
+              <label for="symbolInput">Token</label>
+              <input
+                id="symbolInput"
+                name="symbol"
+                list="tokenList"
+                value="BNB"
+                autocomplete="off"
+                maxlength="16"
+              />
+              <datalist id="tokenList"></datalist>
+            </div>
+
+            <div class="field-row">
+              <label for="thesisInput">News / event / user thesis</label>
+              <textarea
+                id="thesisInput"
+                name="thesis"
+                rows="5"
+                maxlength="1200"
+                placeholder="Example: Binance regulatory news is moving globally, but I need to know whether BNB market evidence confirms it or this is just noise."
+              ></textarea>
+            </div>
+
+            <fieldset>
+              <legend>Timeframe</legend>
+              <div class="segmented">
+                <label><input type="radio" name="timeframe" value="6h" />6h</label>
+                <label><input type="radio" name="timeframe" value="24h" checked />24h</label>
+                <label><input type="radio" name="timeframe" value="7d" />7d</label>
+                <label><input type="radio" name="timeframe" value="30d" />30d</label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Regions</legend>
+              <div class="check-grid">
+                <label><input type="checkbox" name="regions" value="Global" checked />Global</label>
+                <label><input type="checkbox" name="regions" value="US" />US</label>
+                <label><input type="checkbox" name="regions" value="Asia" checked />Asia</label>
+                <label><input type="checkbox" name="regions" value="Europe" />Europe</label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Sources</legend>
+              <div class="check-grid">
+                <label><input type="checkbox" name="sources" value="Tavily" checked />Tavily</label>
+                <label><input type="checkbox" name="sources" value="Official" />Official</label>
+                <label><input type="checkbox" name="sources" value="Crypto-native" checked />Crypto-native</label>
+                <label><input type="checkbox" name="sources" value="Mainstream" />Mainstream</label>
+              </div>
+            </fieldset>
+
+            <div class="button-row">
+              <button id="runButton" class="primary-button" type="submit">Run Reasoning</button>
+              <button id="watchButton" class="secondary-button" type="button">Watch</button>
+            </div>
+          </form>
+
+          <div class="watch-panel">
+            <div class="rail-title">Watch mode</div>
+            <div id="watchlist" class="watchlist">
+              <div class="empty-mini">No watched tokens</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="feed-panel" aria-label="Ranked feed">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Inspectable reasoning output</p>
+              <h2 id="feedTitle">Turn market reads into CONFIRMED, WATCHLIST, or REJECTED</h2>
+            </div>
+            <div id="modeBadge" class="mode-badge">idle</div>
+          </div>
+
+          <div class="metric-grid" id="metricGrid">
+            <div class="metric"><span>Signal</span><strong>-</strong></div>
+            <div class="metric"><span>Confidence</span><strong>-</strong></div>
+            <div class="metric"><span>Missing</span><strong>0</strong></div>
+            <div class="metric"><span>RYO tools</span><strong>0</strong></div>
+          </div>
+
+          <div id="feedSections" class="feed-sections">
+            <div class="empty-state">
+              Add a token and thesis, then run the reasoning layer. It ranks evidence only when sources are available.
+            </div>
+          </div>
+        </section>
+
+        <section class="receipt-panel" aria-label="Decision receipt">
+          <div class="panel-heading compact">
+            <div>
+              <p class="eyebrow">Replayable decision receipt</p>
+              <h2 id="receiptTitle">No receipt selected</h2>
+            </div>
+          </div>
+
+          <div id="receiptDetail" class="receipt-detail">
+            <div class="empty-state">
+              Every run creates an auditable receipt with signal, confidence, RYO calls, missing data and raw JSON.
+            </div>
+          </div>
+        </section>
+
+        <section class="evidence-panel" aria-label="Evidence and availability">
+          <div class="panel-heading compact">
+            <div>
+              <p class="eyebrow">Evidence matrix</p>
+              <h2>Sources and RYO tools</h2>
+            </div>
+          </div>
+          <div id="evidenceMatrix" class="evidence-grid">
+            <div class="empty-state">Evidence appears after a pulse run.</div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="sectionTemplate">
+      <section class="feed-section">
+        <div class="section-header">
+          <h3></h3>
+          <span></span>
+        </div>
+        <div class="story-list"></div>
+      </section>
+    </template>
+
+    <template id="storyTemplate">
+      <article class="story-row">
+        <button class="story-hitbox" type="button">
+          <div class="story-main">
+            <div class="story-topline">
+              <span class="impact-pill"></span>
+              <span class="cluster-pill"></span>
+              <span class="data-pill"></span>
+            </div>
+            <h4></h4>
+            <p></p>
+          </div>
+          <div class="story-side">
+            <strong></strong>
+            <span></span>
+          </div>
+        </button>
+      </article>
+    </template>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
