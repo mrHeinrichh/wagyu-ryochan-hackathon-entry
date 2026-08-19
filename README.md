@@ -95,9 +95,45 @@ Each card must answer:
 
 The app ranks evidence and shows an argument. Raw headline volume does not increase the score by itself.
 
+## Project Structure
+
+The repository separates the Rust backend from the static frontend, and each is
+split into small, single-purpose modules.
+
+```text
+backend/            Rust crate (Axum API + reasoning pipeline)
+  src/
+    main.rs         process bootstrap only: env, state, router, serve
+    config.rs       environment-driven configuration
+    state.rs        shared AppState and the news cache entry
+    error.rs        the shared ApiError type
+    util.rs         small dependency-free helpers
+    watch.rs        optional background watch loop
+    domain/         request/response and receipt data models
+    services/       outbound integrations: http, news (Tavily), ryo, openai
+    reasoning/      the scoring/verdict pipeline (build_pulse + submodules)
+    handlers/       HTTP handlers and the router
+frontend/           static dashboard, no build step
+  index.html
+  styles.css        entry that @imports the css/ partials
+  css/              styling split by concern (tokens, layout, feed, ...)
+  js/
+    main.js         entry point: wires events and initial loads
+    core/           store, api client, dom + format helpers, forms
+    views/          one module per UI region (health, feed, receipt, ...)
+  assets/           RYO-CHAN mascot and favicon
+```
+
+The frontend uses native ES modules and CSS `@import`, so it runs straight
+from disk with no bundler. UI state lives in a single observable store
+(`js/core/store.js`); views read from it and dispatch changes through it.
+
 ## Setup
 
+Configuration lives next to the crate, in `backend/`:
+
 ```bash
+cd backend
 cp .env.example .env
 ```
 
@@ -109,7 +145,7 @@ TAVILY_API_KEY=your_tavily_key
 OPENAI_API_KEY=your_openai_key
 ```
 
-Run:
+Run from the `backend/` directory:
 
 ```bash
 cargo run

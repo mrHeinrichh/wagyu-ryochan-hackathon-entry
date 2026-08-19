@@ -1,7 +1,19 @@
+# Build output
 /target
+backend/target
+
+# Secrets
 .env
 .env.*
 !.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# OS / tooling
 .DS_Store
 .playwright-cli/
 output/
+
+# Local demo/scratch artifacts
+frontend/__demo.json
