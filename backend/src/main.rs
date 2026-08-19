@@ -54,7 +54,8 @@ async fn main() {
         tokio::spawn(watch::watch_loop(state.clone()));
     }
 
-    let static_dir = format!("{}/../frontend", env!("CARGO_MANIFEST_DIR"));
+    // Serve the Next.js static export produced by npm run build:static.
+    let static_dir = format!("{}/../frontend/out", env!("CARGO_MANIFEST_DIR"));
     let app = handlers::router(state, static_dir);
 
     let addr: SocketAddr = ([127, 0, 0, 1], config.port).into();
