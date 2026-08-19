@@ -7,6 +7,7 @@ export interface HealthResponse {
   service: string;
   generated_at: string;
   ryo_configured: boolean;
+  ryo_mock_enabled: boolean;
   tavily_configured: boolean;
   openai_configured: boolean;
   coingecko_configured: boolean;

@@ -9,15 +9,20 @@ type Klass = "ok" | "warn" | "bad";
 
 function healthLines(health: HealthResponse | null): [string, string, Klass][] {
   if (!health) return [["Backend", "checking...", "warn"]];
+  const ryoStatus: [string, Klass] = health.ryo_configured
+    ? ["configured", "ok"]
+    : health.ryo_mock_enabled
+      ? ["mock mode", "warn"]
+      : ["missing key", "bad"];
   return [
     ["Backend", health.status, "ok"],
-    ["RYO MCP", health.ryo_configured ? "configured" : "missing key", health.ryo_configured ? "ok" : "bad"],
+    ["RYO MCP", ryoStatus[0], ryoStatus[1]],
     ["Tavily", health.tavily_configured ? "configured" : "missing key", health.tavily_configured ? "ok" : "warn"],
     ["OpenAI", health.openai_configured ? "configured" : "missing key", health.openai_configured ? "ok" : "warn"],
     ["CoinGecko", health.coingecko_configured ? "backup key" : "optional", health.coingecko_configured ? "ok" : "warn"],
     ["DeFiLlama", health.defillama_enabled ? "enabled" : "optional", health.defillama_enabled ? "ok" : "warn"],
     ["DexScreener", health.dexscreener_enabled ? "enabled" : "optional", health.dexscreener_enabled ? "ok" : "warn"],
-    ["Reasoning data", "real only", "ok"],
+    ["Reasoning data", health.ryo_mock_enabled ? "simulated RYO" : "real only", health.ryo_mock_enabled ? "warn" : "ok"],
     ["Watch loop", health.watch_loop_enabled ? "on" : "manual", health.watch_loop_enabled ? "ok" : "warn"],
   ];
 }
