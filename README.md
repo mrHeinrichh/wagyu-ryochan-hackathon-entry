@@ -1,14 +1,24 @@
-# RYO Global Token Reasoning Layer
+# Wagyu — RYO-CHAN Hackathon Entry
 
-RYO Global Token Reasoning Layer is a RYO-CHAN Hackathon app that turns market reads, news, or a user thesis into an inspectable decision: `CONFIRMED`, `WATCHLIST`, or `REJECTED`.
+Wagyu is our official entry for the **RYO-CHAN Hackathon 2026** (DoraHacks). It is a Global Token News & Reasoning Layer: a Rust-backed agent and dashboard that turns market reads, global news, or a user thesis into an inspectable decision — `CONFIRMED`, `WATCHLIST`, or `REJECTED`.
 
-It is not another RYO chatbot, wallet, DEX connector, or paper-trading app. It runs separately from the RYO app, calls RYO MCP/REST from the Rust backend, combines that market evidence with a news source or user-supplied thesis, and produces auditable decision receipts.
+Wagyu is not another RYO chatbot, wallet, DEX connector, or paper-trading app. It runs separately from the RYO app, calls RYO MCP/REST from the Rust backend, combines that market evidence with a news source or user-supplied thesis, and produces auditable decision receipts.
 
 The product question is:
 
 ```text
-Should this market read change my view on this token?
+Did something happen globally that should materially change my view on this token?
 ```
+
+## Entry Details
+
+- **Project name:** Wagyu
+- **Event:** RYO-CHAN Hackathon 2026 (DoraHacks)
+- **Repository:** `wagyu-ryochan-hackathon-entry`
+- **Backend:** Rust (Axum) — chosen for speed and safe, predictable failure handling
+- **Frontend:** Static dashboard styled to match the RYO-CHAN UI (Light / System / Dark)
+- **Core idea:** Composition over invocation. Chain global news + RYO market intelligence + reasoning into one defensible verdict, and show the argument behind it.
+- **Design principle:** Honest degradation — missing data stays `unavailable`, never faked or zeroed.
 
 Example output:
 
@@ -26,8 +36,11 @@ Example output:
 
 ## Track Fit
 
-- Track 1: Autonomous Agents, if watch mode is enabled and used as a background reasoning loop.
-- Track 2: Dashboards & Interfaces, because the main screen ranks events by importance and explains why each one matters.
+**Track 1 — Autonomous Agents (headline track).** Watch mode runs a background reasoning loop over selected tokens, emitting a fresh decision receipt only when evidence materially shifts. Every signal is traced from headline to RYO technical gate, so the cause-and-effect chain is inspectable.
+
+**Track 2 — Dashboards & Interfaces.** The main screen is a 30-second triage layer that ranks events by importance (Position-changing / Watch closely / Unverified or conflicting / Noise) and explains why each one matters. Styled to match the RYO-CHAN UI across Light, System, and Dark.
+
+**Special — Honest Degradation.** Missing derivatives, timestamps, or RYO evidence are surfaced as `unavailable` in each receipt rather than laundered into a zero or a plausible-looking guess.
 
 ## What It Does
 
