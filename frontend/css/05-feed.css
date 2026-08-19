@@ -1,0 +1,143 @@
+/* The ranked feed: headline metrics, section headers, and story rows. */
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.metric {
+  min-height: 62px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 9px;
+  background: color-mix(in srgb, var(--surface-2) 86%, var(--surface));
+}
+
+.metric span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--soft);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.metric strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--amber);
+  font-size: 18px;
+  line-height: 1.05;
+}
+
+.feed-sections,
+.receipt-detail,
+.evidence-grid {
+  padding: 16px;
+}
+
+.feed-section + .feed-section {
+  margin-top: 18px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.section-header h3 {
+  margin: 0;
+  color: var(--amber-strong);
+  font-size: 13px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.section-header span {
+  color: var(--soft);
+  font-size: 12px;
+}
+
+.story-list {
+  display: grid;
+  gap: 8px;
+}
+
+.story-row {
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--amber) 4%, transparent), transparent 58%),
+    color-mix(in srgb, var(--surface-2) 86%, var(--surface));
+}
+
+.story-row.active {
+  border-color: color-mix(in srgb, var(--amber) 74%, var(--line));
+  box-shadow: inset 3px 0 0 var(--amber);
+}
+
+.story-hitbox {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: 12px;
+  border: 0;
+  padding: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.story-topline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.impact-pill {
+  border-color: color-mix(in srgb, var(--amber) 42%, var(--line));
+  background: color-mix(in srgb, var(--amber) 10%, var(--control));
+  color: var(--amber-strong);
+}
+
+.cluster-pill {
+  max-width: 100%;
+  border-color: color-mix(in srgb, var(--amber) 34%, var(--line));
+  color: var(--amber);
+}
+
+.story-main h4 {
+  margin-bottom: 7px;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.story-main p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.42;
+}
+
+.story-side {
+  display: grid;
+  align-content: center;
+  justify-items: end;
+  gap: 6px;
+}
+
+.story-side strong {
+  font-size: 26px;
+  color: var(--amber);
+}
+
+.story-side span {
+  color: var(--soft);
+  font-size: 12px;
+}

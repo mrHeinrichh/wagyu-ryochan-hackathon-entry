@@ -1,0 +1,73 @@
+/* Sidebar contents: integration status lines, receipt history, and the watchlist. */
+
+.source-line {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--surface-2) 82%, var(--surface));
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.source-line strong {
+  color: var(--text);
+}
+
+.source-line.ok strong {
+  color: var(--green);
+}
+
+.source-line.warn strong {
+  color: var(--amber);
+}
+
+.source-line.bad strong {
+  color: var(--red);
+}
+
+.history-block {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding: 12px;
+}
+
+.receipt-history,
+.watchlist {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overflow: auto;
+  padding-top: 10px;
+}
+
+.history-item,
+.watch-item {
+  width: 100%;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 9px;
+  background: color-mix(in srgb, var(--surface-2) 86%, var(--surface));
+  color: var(--text);
+  text-align: left;
+}
+
+.history-item:hover,
+.watch-item:hover,
+.story-row:hover,
+.detail-cell:hover,
+.evidence-card:hover {
+  border-color: color-mix(in srgb, var(--amber) 44%, var(--line));
+}
+
+.history-item span,
+.watch-item span,
+.empty-mini {
+  color: var(--soft);
+  font-size: 12px;
+}
