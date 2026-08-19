@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, type TokensResponse } from "@/lib/api";
 import { findCard } from "@/lib/receipt";
 import type {
   DecisionReceipt,
   HealthResponse,
   PulseRequestBody,
   ReceiptListItem,
+  RunMode,
   TokenInfo,
   WatchItem,
 } from "@/lib/types";
@@ -17,22 +18,27 @@ import ControlPanel from "./ControlPanel";
 import Feed from "./Feed";
 import ReceiptDetail from "./ReceiptDetail";
 import EvidenceMatrix from "./EvidenceMatrix";
-
-type FeedMode = { status: string; mode: string } | null;
+import WorkspaceHeader from "./WorkspaceHeader";
+import DecisionCharts from "./DecisionCharts";
 
 export default function Dashboard() {
   const receipt = useAppStore((s) => s.currentReceipt);
   const selectedCardId = useAppStore((s) => s.selectedCardId);
   const setReceipt = useAppStore((s) => s.setReceipt);
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
 
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [tokens, setTokens] = useState<TokenInfo[]>([]);
+  const [tokenCatalog, setTokenCatalog] = useState<TokensResponse | null>(null);
+  const [tokenCatalogError, setTokenCatalogError] = useState<string | null>(null);
+  const [tokensLoading, setTokensLoading] = useState(true);
   const [history, setHistory] = useState<ReceiptListItem[]>([]);
   const [watchlist, setWatchlist] = useState<WatchItem[]>([]);
   const [running, setRunning] = useState(false);
-  const [feedMode, setFeedMode] = useState<FeedMode>(null);
+  const [feedMode, setFeedMode] = useState<RunMode | null>(null);
   const [feedError, setFeedError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -55,11 +61,24 @@ export default function Dashboard() {
     api.health().then(setHealth).catch((error: Error) => setHealthError(error.message));
     api
       .tokens()
-      .then((payload) => setTokens(payload.tokens ?? []))
-      .catch(() => setTokens([]));
+      .then((payload) => {
+        setTokenCatalog(payload);
+        setTokens(payload.tokens);
+      })
+      .catch((error: Error) => {
+        setTokenCatalogError(error.message);
+        setTokens([]);
+      })
+      .finally(() => setTokensLoading(false));
     loadHistory();
     loadWatchlist();
   }, [loadHistory, loadWatchlist]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(null), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
 
   const runPulse = useCallback(
     async (body: PulseRequestBody) => {
@@ -99,8 +118,9 @@ export default function Dashboard() {
       try {
         await api.addWatch({ symbol, interval_minutes: 15 });
         await loadWatchlist();
+        setNotice(`${symbol.toUpperCase()} added to watch mode.`);
       } catch (error) {
-        alert((error as Error).message);
+        setNotice((error as Error).message);
       }
     },
     [loadWatchlist],
@@ -111,8 +131,9 @@ export default function Dashboard() {
       try {
         await api.removeWatch(symbol);
         await loadWatchlist();
-      } catch {
-        // Non-fatal; the list refreshes on the next action.
+        setNotice(`${symbol.toUpperCase()} removed from watch mode.`);
+      } catch (error) {
+        setNotice((error as Error).message);
       }
     },
     [loadWatchlist],
@@ -121,26 +142,41 @@ export default function Dashboard() {
   const selectedCard = receipt ? findCard(receipt, selectedCardId) : undefined;
 
   return (
-    <div className="app-shell">
+    <div className={sidebarCollapsed ? "app-shell sidebar-collapsed" : "app-shell"}>
+      <a className="skip-link" href="#main-workbench">
+        Skip to workspace
+      </a>
       <Sidebar
         health={health}
         healthError={healthError}
         history={history}
         onOpenReceipt={openReceipt}
       />
-      <main className="workbench">
+      <main id="main-workbench" className="workbench" tabIndex={-1}>
+        <WorkspaceHeader health={health} running={running} mode={feedMode} />
         <ControlPanel
           tokens={tokens}
+          tokenCatalog={tokenCatalog}
+          tokenCatalogError={tokenCatalogError}
+          tokensLoading={tokensLoading}
           watchlist={watchlist}
           running={running}
           onRun={runPulse}
           onWatch={addWatch}
           onRemoveWatch={removeWatch}
         />
-        <Feed receipt={receipt} mode={feedMode} error={feedError} />
-        <ReceiptDetail receipt={receipt} card={selectedCard} />
+        <div className="workspace-grid">
+          <div className="primary-stack">
+            <Feed receipt={receipt} mode={feedMode} error={feedError} />
+            <DecisionCharts receipt={receipt} card={selectedCard} />
+          </div>
+          <ReceiptDetail receipt={receipt} card={selectedCard} />
+        </div>
         <EvidenceMatrix receipt={receipt} />
       </main>
+      <div className={notice ? "toast visible" : "toast"} role="status" aria-live="polite">
+        {notice}
+      </div>
     </div>
   );
 }

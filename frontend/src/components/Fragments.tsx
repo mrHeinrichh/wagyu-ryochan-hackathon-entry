@@ -1,4 +1,5 @@
-import type { StoryCard, DecisionReceipt } from "@/lib/types";
+import { ChevronDown, ExternalLink } from "lucide-react";
+import type { DecisionReceipt, StoryCard } from "@/lib/types";
 
 export function DetailCell({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -9,23 +10,44 @@ export function DetailCell({ label, value }: { label: string; value: string | nu
   );
 }
 
-export function ListBlock({ label, items }: { label: string; items?: string[] | null }) {
-  if (!items || items.length === 0) {
-    return (
-      <div>
-        <p className="eyebrow">{label}</p>
-        <p className="muted">None declared.</p>
-      </div>
-    );
-  }
+export function Disclosure({
+  title,
+  meta,
+  children,
+  open = false,
+}: {
+  title: string;
+  meta?: string | number;
+  children: React.ReactNode;
+  open?: boolean;
+}) {
   return (
-    <div>
+    <details className="disclosure" open={open}>
+      <summary>
+        <span>{title}</span>
+        <span className="summary-meta">
+          {meta}
+          <ChevronDown className="chevron" aria-hidden="true" />
+        </span>
+      </summary>
+      <div className="disclosure-body">{children}</div>
+    </details>
+  );
+}
+
+export function ListBlock({ label, items }: { label: string; items?: string[] | null }) {
+  return (
+    <div className="list-block">
       <p className="eyebrow">{label}</p>
-      <ol className="detail-list">
-        {items.map((item, index) => (
-          <li key={index}>{item}</li>
-        ))}
-      </ol>
+      {!items || items.length === 0 ? (
+        <p className="muted">None declared.</p>
+      ) : (
+        <ol className="detail-list">
+          {items.map((item, index) => (
+            <li key={index}>{item}</li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }
@@ -33,13 +55,13 @@ export function ListBlock({ label, items }: { label: string; items?: string[] | 
 export function Warnings({ warnings }: { warnings?: string[] | null }) {
   if (!warnings || warnings.length === 0) return null;
   return (
-    <div>
-      <p className="eyebrow">Warnings</p>
-      <ol className="detail-list">
+    <div className="warning-block" role="note">
+      <strong>Warnings</strong>
+      <ul>
         {warnings.map((item, index) => (
           <li key={index}>{item}</li>
         ))}
-      </ol>
+      </ul>
     </div>
   );
 }
@@ -47,7 +69,10 @@ export function Warnings({ warnings }: { warnings?: string[] | null }) {
 export function RawJson({ receipt }: { receipt: DecisionReceipt }) {
   return (
     <details className="raw-json">
-      <summary>Raw JSON for judges</summary>
+      <summary>
+        <span>Raw JSON</span>
+        <ChevronDown className="chevron" aria-hidden="true" />
+      </summary>
       <pre>{JSON.stringify(receipt, null, 2)}</pre>
     </details>
   );
@@ -56,13 +81,9 @@ export function RawJson({ receipt }: { receipt: DecisionReceipt }) {
 export function SourceLink({ card }: { card: StoryCard }) {
   if (!card.url || card.url.startsWith("about:")) return null;
   return (
-    <div>
-      <p className="eyebrow">Source link</p>
-      <p>
-        <a href={card.url} target="_blank" rel="noreferrer">
-          {card.url}
-        </a>
-      </p>
-    </div>
+    <a className="source-link" href={card.url} target="_blank" rel="noreferrer">
+      Open source
+      <ExternalLink aria-hidden="true" />
+    </a>
   );
 }

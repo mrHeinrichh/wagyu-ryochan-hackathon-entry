@@ -15,15 +15,18 @@ function initialTheme(): ThemeChoice {
 
 interface AppState {
   theme: ThemeChoice;
+  sidebarCollapsed: boolean;
   currentReceipt: DecisionReceipt | null;
   selectedCardId: string | null;
   setTheme: (theme: ThemeChoice) => void;
+  toggleSidebar: () => void;
   setReceipt: (receipt: DecisionReceipt) => void;
   selectCard: (cardId: string) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
   theme: initialTheme(),
+  sidebarCollapsed: false,
   currentReceipt: null,
   selectedCardId: null,
 
@@ -35,6 +38,8 @@ export const useAppStore = create<AppState>((set) => ({
     }
     set({ theme: next });
   },
+
+  toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
   setReceipt: (receipt) =>
     set({ currentReceipt: receipt, selectedCardId: firstCard(receipt)?.id ?? null }),

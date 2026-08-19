@@ -2,6 +2,11 @@
 
 export type ThemeChoice = "light" | "system" | "dark";
 
+export interface RunMode {
+  status: string;
+  mode: string;
+}
+
 export interface HealthResponse {
   status: string;
   service: string;
@@ -20,6 +25,7 @@ export interface TokenInfo {
   symbol: string;
   name: string;
   default_peers: string[];
+  market_cap_rank?: number;
 }
 
 export interface StoryScore {

@@ -27,7 +27,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export interface TokensResponse {
-  tokens?: TokenInfo[];
+  status: string;
+  data_mode: string;
+  source: string;
+  as_of: string;
+  cached: boolean;
+  tokens: TokenInfo[];
+  warnings: string[];
 }
 
 export const api = {
