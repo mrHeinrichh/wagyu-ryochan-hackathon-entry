@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>RYO Global Token Reasoning Layer</title>
+    <title>The Wagyu Ledger — RYO-CHAN Market Intelligence</title>
     <script>
       (() => {
         const theme = localStorage.getItem("gtp-theme") || "system";
@@ -13,190 +13,208 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,600&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Special+Elite&display=swap"
       rel="stylesheet"
     />
     <link
       rel="icon"
-      href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="%2321283d"/><text x="32" y="39" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="900" fill="%23f0b84a">RYO</text></svg>'
+      href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="4" fill="%231a1712"/><text x="32" y="42" text-anchor="middle" font-family="Georgia,serif" font-size="30" font-weight="900" fill="%23e8dfce">W</text></svg>'
     />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="side-rail" aria-label="Workspace">
-        <div class="brand-block">
-          <div class="brand-mark">RYO</div>
-          <div>
-            <h1>RYO Token Reasoning Layer</h1>
-            <p>Market reads to decisions</p>
+    <div class="paper">
+      <header class="masthead">
+        <div class="masthead-top">
+          <span class="masthead-flag">Vol. I — RYO-CHAN Hackathon Edition</span>
+          <span class="masthead-flag" id="mastheadDate">—</span>
+          <span class="masthead-flag">Price: One Decision</span>
+        </div>
+        <h1 class="masthead-title">The Wagyu Ledger</h1>
+        <p class="masthead-motto">"All the market reads that are fit to judge — Composition over Invocation, Honest Degradation always."</p>
+        <div class="masthead-rule">
+          <span>Global Token Intelligence</span>
+          <span id="mastheadEdition">Late City Final</span>
+          <span>Powered by RYO-CHAN MCP</span>
+        </div>
+      </header>
+
+      <nav class="pressroom" aria-label="Controls">
+        <form id="pulseForm" class="pressroom-form">
+          <div class="press-field press-field-token">
+            <label for="symbolInput">Assignment desk — token</label>
+            <input
+              id="symbolInput"
+              name="symbol"
+              list="tokenList"
+              value="BNB"
+              autocomplete="off"
+              maxlength="16"
+            />
+            <datalist id="tokenList"></datalist>
           </div>
-        </div>
 
-        <div class="theme-switch" role="group" aria-label="Theme">
-          <button type="button" data-theme-choice="light">Light</button>
-          <button type="button" data-theme-choice="system">System</button>
-          <button type="button" data-theme-choice="dark">Dark</button>
-        </div>
-
-        <div class="source-stack" id="healthStack">
-          <div class="source-line muted">Checking backend...</div>
-        </div>
-
-        <div class="history-block">
-          <div class="rail-title">Receipts</div>
-          <div id="receiptHistory" class="receipt-history">
-            <div class="empty-mini">No receipts yet</div>
+          <div class="press-field press-field-thesis">
+            <label for="thesisInput">The lead — news, event, or your thesis</label>
+            <textarea
+              id="thesisInput"
+              name="thesis"
+              rows="2"
+              maxlength="1200"
+              placeholder="Example: Binance regulatory news is moving globally, but does BNB market evidence confirm it — or is this just noise?"
+            ></textarea>
           </div>
-        </div>
-      </aside>
 
-      <main class="workbench">
-        <section class="control-panel" aria-label="Pulse controls">
-          <form id="pulseForm">
-            <div class="field-row">
-              <label for="symbolInput">Token</label>
-              <input
-                id="symbolInput"
-                name="symbol"
-                list="tokenList"
-                value="BNB"
-                autocomplete="off"
-                maxlength="16"
-              />
-              <datalist id="tokenList"></datalist>
-            </div>
-
-            <div class="field-row">
-              <label for="thesisInput">News / event / user thesis</label>
-              <textarea
-                id="thesisInput"
-                name="thesis"
-                rows="5"
-                maxlength="1200"
-                placeholder="Example: Binance regulatory news is moving globally, but I need to know whether BNB market evidence confirms it or this is just noise."
-              ></textarea>
-            </div>
-
-            <fieldset>
-              <legend>Timeframe</legend>
-              <div class="segmented">
+          <div class="press-field press-field-controls">
+            <div class="press-inline">
+              <span class="press-mini-label">Window</span>
+              <div class="segmented" role="group" aria-label="Timeframe">
                 <label><input type="radio" name="timeframe" value="6h" />6h</label>
                 <label><input type="radio" name="timeframe" value="24h" checked />24h</label>
                 <label><input type="radio" name="timeframe" value="7d" />7d</label>
                 <label><input type="radio" name="timeframe" value="30d" />30d</label>
               </div>
-            </fieldset>
-
-            <fieldset>
-              <legend>Regions</legend>
-              <div class="check-grid">
-                <label><input type="checkbox" name="regions" value="Global" checked />Global</label>
-                <label><input type="checkbox" name="regions" value="US" />US</label>
-                <label><input type="checkbox" name="regions" value="Asia" checked />Asia</label>
-                <label><input type="checkbox" name="regions" value="Europe" />Europe</label>
+            </div>
+            <div class="press-inline">
+              <span class="press-mini-label">Beats</span>
+              <div class="chip-row">
+                <label class="chip"><input type="checkbox" name="regions" value="Global" checked />Global</label>
+                <label class="chip"><input type="checkbox" name="regions" value="US" />US</label>
+                <label class="chip"><input type="checkbox" name="regions" value="Asia" checked />Asia</label>
+                <label class="chip"><input type="checkbox" name="regions" value="Europe" />Europe</label>
               </div>
-            </fieldset>
-
-            <fieldset>
-              <legend>Sources</legend>
-              <div class="check-grid">
-                <label><input type="checkbox" name="sources" value="Tavily" checked />Tavily</label>
-                <label><input type="checkbox" name="sources" value="Official" />Official</label>
-                <label><input type="checkbox" name="sources" value="Crypto-native" checked />Crypto-native</label>
-                <label><input type="checkbox" name="sources" value="Mainstream" />Mainstream</label>
+            </div>
+            <div class="press-inline">
+              <span class="press-mini-label">Wires</span>
+              <div class="chip-row">
+                <label class="chip"><input type="checkbox" name="sources" value="Tavily" checked />Tavily</label>
+                <label class="chip"><input type="checkbox" name="sources" value="Official" />Official</label>
+                <label class="chip"><input type="checkbox" name="sources" value="Crypto-native" checked />Crypto</label>
+                <label class="chip"><input type="checkbox" name="sources" value="Mainstream" />Wire</label>
               </div>
-            </fieldset>
-
-            <div class="button-row">
-              <button id="runButton" class="primary-button" type="submit">Run Reasoning</button>
-              <button id="watchButton" class="secondary-button" type="button">Watch</button>
-            </div>
-          </form>
-
-          <div class="watch-panel">
-            <div class="rail-title">Watch mode</div>
-            <div id="watchlist" class="watchlist">
-              <div class="empty-mini">No watched tokens</div>
             </div>
           </div>
+
+          <div class="press-field press-field-actions">
+            <button id="runButton" class="press-button primary" type="submit">Run the Presses</button>
+            <button id="watchButton" class="press-button ghost" type="button">Assign a Watch</button>
+            <button
+              type="button"
+              class="press-button ghost theme-toggle"
+              id="themeToggle"
+              title="Toggle reading light"
+            >Reading Light</button>
+          </div>
+        </form>
+      </nav>
+
+      <div class="wire-status" id="healthStack" aria-label="Wire status">
+        <span class="wire-item muted">Checking the wire…</span>
+      </div>
+
+      <main class="broadsheet">
+        <section class="lead-column">
+          <div class="banner-verdict" id="bannerVerdict" hidden>
+            <span class="banner-kicker" id="bannerKicker">Decision</span>
+            <strong class="banner-signal" id="bannerSignal">—</strong>
+            <span class="banner-confidence" id="bannerConfidence">—</span>
+          </div>
+
+          <article class="lead-story" id="leadStory">
+            <div class="empty-broadsheet">
+              <h2>Awaiting the desk's first ruling</h2>
+              <p>
+                Name a token, drop the lead, and run the presses. The Ledger only prints a verdict
+                when real evidence comes off the wire — no fabricated numbers, no placeholder charts.
+              </p>
+            </div>
+          </article>
+
+          <section class="recommendations" id="recommendationBox" hidden>
+            <h3 class="col-heading">The Editorial — What We'd Do</h3>
+            <ol id="recommendationList" class="recommendation-list"></ol>
+          </section>
+
+          <section class="ranked-desk" id="feedSections" aria-label="Ranked stories"></section>
         </section>
 
-        <section class="feed-panel" aria-label="Ranked feed">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Inspectable reasoning output</p>
-              <h2 id="feedTitle">Turn market reads into CONFIRMED, WATCHLIST, or REJECTED</h2>
+        <aside class="side-column">
+          <section class="sentiment-box" id="sentimentBox">
+            <h3 class="col-heading">The Market Mood</h3>
+            <div class="gauge" id="gauge">
+              <div class="gauge-dial" id="gaugeDial">
+                <div class="gauge-needle" id="gaugeNeedle"></div>
+                <span class="gauge-value" id="gaugeValue">—</span>
+                <span class="gauge-label" id="gaugeLabel">Fear &amp; Greed</span>
+              </div>
             </div>
-            <div id="modeBadge" class="mode-badge">idle</div>
-          </div>
+            <dl class="mood-facts" id="moodFacts">
+              <div><dt>Regime</dt><dd>—</dd></div>
+              <div><dt>BTC Dominance</dt><dd>—</dd></div>
+              <div><dt>Breadth</dt><dd>—</dd></div>
+            </dl>
+            <p class="mood-note" id="moodNote">Run a report to read the market's mood.</p>
+          </section>
 
-          <div class="metric-grid" id="metricGrid">
-            <div class="metric"><span>Signal</span><strong>-</strong></div>
-            <div class="metric"><span>Confidence</span><strong>-</strong></div>
-            <div class="metric"><span>Missing</span><strong>0</strong></div>
-            <div class="metric"><span>RYO tools</span><strong>0</strong></div>
-          </div>
+          <section class="dispatch-box" id="dispatchBox" hidden>
+            <h3 class="col-heading">From the Editor</h3>
+            <p class="dispatch-note" id="editorNote"></p>
+            <div class="scoreboard" id="scoreboard"></div>
+          </section>
 
-          <div id="feedSections" class="feed-sections">
-            <div class="empty-state">
-              Add a token and thesis, then run the reasoning layer. It ranks evidence only when sources are available.
+          <section class="receipt-box">
+            <h3 class="col-heading">The Full Record</h3>
+            <div id="receiptDetail" class="receipt-detail">
+              <p class="muted small">Every ruling files an auditable receipt — sources, RYO calls, reasoning, and the data we could not get.</p>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section class="receipt-panel" aria-label="Decision receipt">
-          <div class="panel-heading compact">
-            <div>
-              <p class="eyebrow">Replayable decision receipt</p>
-              <h2 id="receiptTitle">No receipt selected</h2>
+          <section class="archive-box">
+            <h3 class="col-heading">Back Issues</h3>
+            <div id="receiptHistory" class="archive-list">
+              <p class="muted small">No editions filed yet.</p>
             </div>
-          </div>
+          </section>
 
-          <div id="receiptDetail" class="receipt-detail">
-            <div class="empty-state">
-              Every run creates an auditable receipt with signal, confidence, RYO calls, missing data and raw JSON.
+          <section class="watch-box">
+            <h3 class="col-heading">Standing Assignments</h3>
+            <div id="watchlist" class="watch-list">
+              <p class="muted small">No tokens on watch.</p>
             </div>
-          </div>
-        </section>
-
-        <section class="evidence-panel" aria-label="Evidence and availability">
-          <div class="panel-heading compact">
-            <div>
-              <p class="eyebrow">Evidence matrix</p>
-              <h2>Sources and RYO tools</h2>
-            </div>
-          </div>
-          <div id="evidenceMatrix" class="evidence-grid">
-            <div class="empty-state">Evidence appears after a pulse run.</div>
-          </div>
-        </section>
+          </section>
+        </aside>
       </main>
+
+      <footer class="colophon">
+        <span>The Wagyu Ledger is a RYO-CHAN Hackathon entry.</span>
+        <span>Reasoning layer, not a trading desk. No live money, no fabricated data.</span>
+      </footer>
     </div>
 
     <template id="sectionTemplate">
-      <section class="feed-section">
-        <div class="section-header">
+      <section class="desk-section">
+        <div class="desk-header">
           <h3></h3>
-          <span></span>
+          <span class="desk-count"></span>
         </div>
-        <div class="story-list"></div>
+        <div class="clipping-list"></div>
       </section>
     </template>
 
     <template id="storyTemplate">
-      <article class="story-row">
-        <button class="story-hitbox" type="button">
-          <div class="story-main">
-            <div class="story-topline">
-              <span class="impact-pill"></span>
-              <span class="cluster-pill"></span>
-              <span class="data-pill"></span>
+      <article class="clipping">
+        <button class="clipping-hit" type="button">
+          <div class="clipping-body">
+            <div class="clipping-tags">
+              <span class="tag impact-tag"></span>
+              <span class="tag cluster-tag"></span>
+              <span class="tag data-tag"></span>
             </div>
             <h4></h4>
-            <p></p>
+            <p class="clipping-dek"></p>
+            <p class="clipping-byline"></p>
           </div>
-          <div class="story-side">
+          <div class="clipping-verdict">
             <strong></strong>
             <span></span>
           </div>

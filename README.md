@@ -56,12 +56,29 @@ Example output:
    - `monitor_market_sentiment_shift`
 5. Backend optionally asks OpenAI for the final reasoning verdict.
 6. Stories are scored using available evidence only.
-7. The UI displays ranked buckets:
+7. The verdict, Fear & Greed reading, and a plain-language recommendation set are rendered as a front page.
+8. The UI displays ranked buckets:
    - Position-changing
    - Watch closely
    - Unverified or conflicting
    - Noise
-8. Each card opens a decision receipt with sources, RYO calls, reasoning, missing data, confidence, and warnings.
+9. Each dispatch opens a decision receipt with sources, RYO calls, reasoning, missing data, confidence, and warnings.
+
+## The Front Page (UI)
+
+The dashboard is styled as an old broadsheet, "The Wagyu Ledger," so a reader can scan the ruling in seconds:
+
+- A masthead with a live dateline, plus a Light / Reading Light (dark) / Auto theme toggle.
+- A banner verdict (CONFIRMED / WATCHLIST / REJECTED) with confidence.
+- A lead story that reads as prose: headline, dek, and the reasoning laid out in newspaper columns with a drop cap.
+- The Market Mood panel: a Fear & Greed dial with a needle, plus regime, BTC dominance, and breadth pulled from RYO `market_overview`. When that data is missing, the dial reads N/A rather than a faked number.
+- The Editorial: a ranked, plain-language recommendation list synthesized from the verdict, the Fear & Greed reading, missing data, and the lead story.
+- From the Editor: a one-line desk note plus a scoreboard of how many stories landed in each bucket.
+- The Full Record: the selected dispatch's receipt, with reasoning trace, missing data, source link, warnings, and raw JSON for judges.
+
+### Fear & Greed and recommendations
+
+`market_pulse` and `recommendations` are computed on the backend and returned in every receipt, so the same reasoning shows up in the raw JSON judges inspect. Fear & Greed is read out of the live `market_overview` response; if the field is absent, it is reported as unavailable and no crowd-sentiment adjustment is applied.
 
 ## Subscriptions
 

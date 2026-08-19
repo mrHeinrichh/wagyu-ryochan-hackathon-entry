@@ -11,32 +11,34 @@ const all = (selector) => Array.from(document.querySelectorAll(selector));
 init();
 
 async function init() {
+  setDateline();
   initThemeControls();
   bindEvents();
   await Promise.all([loadHealth(), loadTokens(), loadHistory(), loadWatchlist()]);
 }
 
+function setDateline() {
+  const now = new Date();
+  const opts = { weekday: "long", year: "numeric", month: "long", day: "numeric" };
+  el("#mastheadDate").textContent = now.toLocaleDateString([], opts).toUpperCase();
+}
+
 function initThemeControls() {
-  setTheme(state.theme);
-  for (const button of all("[data-theme-choice]")) {
-    button.addEventListener("click", () => setTheme(button.dataset.themeChoice));
-  }
+  applyTheme(state.theme);
+  el("#themeToggle").addEventListener("click", () => {
+    const order = ["light", "dark", "system"];
+    const next = order[(order.indexOf(state.theme) + 1) % order.length];
+    applyTheme(next);
+  });
 }
 
-function setTheme(theme) {
-  const nextTheme = ["light", "system", "dark"].includes(theme) ? theme : "system";
-  state.theme = nextTheme;
-  localStorage.setItem("gtp-theme", nextTheme);
-  document.documentElement.dataset.theme = nextTheme;
-  renderThemeControls();
-}
-
-function renderThemeControls() {
-  for (const button of all("[data-theme-choice]")) {
-    const active = button.dataset.themeChoice === state.theme;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", active ? "true" : "false");
-  }
+function applyTheme(theme) {
+  const next = ["light", "system", "dark"].includes(theme) ? theme : "system";
+  state.theme = next;
+  localStorage.setItem("gtp-theme", next);
+  document.documentElement.dataset.theme = next;
+  const label = next === "system" ? "Auto Light" : next === "dark" ? "Reading Light: On" : "Reading Light: Off";
+  el("#themeToggle").textContent = label;
 }
 
 function bindEvents() {
@@ -44,10 +46,7 @@ function bindEvents() {
     event.preventDefault();
     await runPulse();
   });
-
-  el("#watchButton").addEventListener("click", async () => {
-    await addWatch();
-  });
+  el("#watchButton").addEventListener("click", addWatch);
 }
 
 async function loadHealth() {
@@ -55,7 +54,11 @@ async function loadHealth() {
     state.health = await api("/health");
     renderHealth(state.health);
   } catch (error) {
-    el("#healthStack").innerHTML = `<div class="source-line bad"><span>Backend</span><strong>${escapeHtml(error.message)}</strong></div>`;
+    el("#healthStack").innerHTML = markup(
+      "span",
+      "wire-item bad",
+      "Wire down " + escapeHtml(error.message),
+    );
   }
 }
 
@@ -71,7 +74,7 @@ async function loadTokens() {
       datalist.appendChild(option);
     }
   } catch {
-    // Token input remains usable even if the helper list is unavailable.
+    /* input still works without the helper list */
   }
 }
 
@@ -80,26 +83,35 @@ async function loadHistory() {
     const receipts = await api("/api/receipts");
     const target = el("#receiptHistory");
     if (!receipts.length) {
-      target.innerHTML = `<div class="empty-mini">No receipts yet</div>`;
+      target.innerHTML = '<p class="muted small">No editions filed yet.</p>';
       return;
     }
     target.innerHTML = "";
     for (const item of receipts) {
       const button = document.createElement("button");
-      button.className = "history-item";
+      button.className = "archive-item";
       button.type = "button";
-      button.innerHTML = `
-        <strong>${escapeHtml(item.symbol)} ${escapeHtml(item.signal || "")}</strong>
-        <span>${percentText(item.confidence)} - ${escapeHtml(item.data_mode)} - ${shortDate(item.created_at)}</span>
-      `;
+      button.innerHTML =
+        "<strong>" +
+        escapeHtml(item.symbol) +
+        " &mdash; " +
+        escapeHtml(item.signal || "") +
+        "</strong><span>" +
+        percentText(item.confidence) +
+        " &middot; " +
+        escapeHtml(item.data_mode) +
+        " &middot; " +
+        shortDate(item.created_at) +
+        "</span>";
       button.addEventListener("click", async () => {
-        const receipt = await api(`/api/receipts/${encodeURIComponent(item.id)}`);
+        const receipt = await api("/api/receipts/" + encodeURIComponent(item.id));
         renderReceipt(receipt);
+        window.scrollTo({ top: 0, behavior: "smooth" });
       });
       target.appendChild(button);
     }
   } catch {
-    el("#receiptHistory").innerHTML = `<div class="empty-mini">Receipt history unavailable</div>`;
+    el("#receiptHistory").innerHTML = '<p class="muted small">Archive unavailable.</p>';
   }
 }
 
@@ -108,7 +120,7 @@ async function loadWatchlist() {
     const watchlist = await api("/api/watchlist");
     renderWatchlist(watchlist);
   } catch {
-    el("#watchlist").innerHTML = `<div class="empty-mini">Watchlist unavailable</div>`;
+    el("#watchlist").innerHTML = '<p class="muted small">Watch desk unavailable.</p>';
   }
 }
 
@@ -116,9 +128,7 @@ async function runPulse() {
   const button = el("#runButton");
   const symbol = el("#symbolInput").value;
   button.disabled = true;
-  button.textContent = "Running";
-  setMode("partial", "running");
-
+  button.textContent = "Setting type…";
   try {
     const receipt = await api("/reason", {
       method: "POST",
@@ -133,11 +143,13 @@ async function runPulse() {
     renderReceipt(receipt);
     await loadHistory();
   } catch (error) {
-    setMode("unavailable", "failed");
-    el("#feedSections").innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    el("#leadStory").innerHTML =
+      '<div class="empty-broadsheet"><h2>The presses jammed</h2><p>' +
+      escapeHtml(error.message) +
+      "</p></div>";
   } finally {
     button.disabled = false;
-    button.textContent = "Run Reasoning";
+    button.textContent = "Run the Presses";
   }
 }
 
@@ -145,7 +157,7 @@ async function addWatch() {
   const symbol = el("#symbolInput").value;
   const button = el("#watchButton");
   button.disabled = true;
-  button.textContent = "Saving";
+  button.textContent = "Assigning…";
   try {
     await api("/api/watchlist", {
       method: "POST",
@@ -156,31 +168,34 @@ async function addWatch() {
     alert(error.message);
   } finally {
     button.disabled = false;
-    button.textContent = "Watch";
+    button.textContent = "Assign a Watch";
   }
 }
 
 async function removeWatch(symbol) {
-  await api(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
+  await api("/api/watchlist/" + encodeURIComponent(symbol), { method: "DELETE" });
   await loadWatchlist();
 }
 
 function renderHealth(health) {
   const lines = [
     ["Backend", health.status, "ok"],
-    ["RYO MCP", health.ryo_configured ? "configured" : "missing key", health.ryo_configured ? "ok" : "bad"],
-    ["Tavily", health.tavily_configured ? "configured" : "missing key", health.tavily_configured ? "ok" : "warn"],
-    ["OpenAI", health.openai_configured ? "configured" : "missing key", health.openai_configured ? "ok" : "warn"],
-    ["CoinGecko", health.coingecko_configured ? "backup key" : "optional", health.coingecko_configured ? "ok" : "warn"],
-    ["DeFiLlama", health.defillama_enabled ? "enabled" : "optional", health.defillama_enabled ? "ok" : "warn"],
-    ["DexScreener", health.dexscreener_enabled ? "enabled" : "optional", health.dexscreener_enabled ? "ok" : "warn"],
-    ["Reasoning data", "real only", "ok"],
+    ["RYO MCP", health.ryo_configured ? "live" : "missing key", health.ryo_configured ? "ok" : "bad"],
+    ["Tavily", health.tavily_configured ? "live" : "missing key", health.tavily_configured ? "ok" : "warn"],
+    ["OpenAI", health.openai_configured ? "live" : "missing key", health.openai_configured ? "ok" : "warn"],
+    ["CoinGecko", health.coingecko_configured ? "backup" : "optional", health.coingecko_configured ? "ok" : "warn"],
     ["Watch loop", health.watch_loop_enabled ? "on" : "manual", health.watch_loop_enabled ? "ok" : "warn"],
   ];
   el("#healthStack").innerHTML = lines
     .map(
       ([label, value, klass]) =>
-        `<div class="source-line ${klass}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`,
+        '<span class="wire-item ' +
+        klass +
+        '">' +
+        escapeHtml(label) +
+        " <strong>" +
+        escapeHtml(value) +
+        "</strong></span>",
     )
     .join("");
 }
@@ -188,22 +203,25 @@ function renderHealth(health) {
 function renderWatchlist(watchlist) {
   const target = el("#watchlist");
   if (!watchlist.length) {
-    target.innerHTML = `<div class="empty-mini">No watched tokens</div>`;
+    target.innerHTML = '<p class="muted small">No tokens on watch.</p>';
     return;
   }
   target.innerHTML = "";
   for (const item of watchlist) {
     const row = document.createElement("div");
     row.className = "watch-item";
-    row.innerHTML = `
-      <strong>${escapeHtml(item.symbol)}</strong>
-      <span>${item.interval_minutes} min - next ${shortDate(item.next_check_at)}</span>
-    `;
+    row.innerHTML =
+      "<strong>" +
+      escapeHtml(item.symbol) +
+      "</strong><span>every " +
+      item.interval_minutes +
+      " min &middot; next " +
+      shortDate(item.next_check_at) +
+      "</span>";
     const remove = document.createElement("button");
-    remove.className = "secondary-button";
+    remove.className = "watch-remove";
     remove.type = "button";
-    remove.textContent = "Remove";
-    remove.style.marginTop = "8px";
+    remove.textContent = "Unassign";
     remove.addEventListener("click", () => removeWatch(item.symbol));
     row.appendChild(remove);
     target.appendChild(row);
@@ -213,25 +231,134 @@ function renderWatchlist(watchlist) {
 function renderReceipt(receipt) {
   state.currentReceipt = receipt;
   state.selectedCardId = firstCard(receipt)?.id || null;
-
-  el("#feedTitle").textContent = receipt.summary.headline;
-  setMode(receipt.status, receipt.data_mode);
-  renderMetrics(receipt);
+  renderBanner(receipt);
+  renderLeadStory(receipt);
+  renderMarketPulse(receipt);
+  renderRecommendations(receipt);
+  renderDispatch(receipt);
   renderFeed(receipt);
   renderReceiptDetail(receipt, selectedCard(receipt));
-  renderEvidence(receipt);
 }
 
-function renderMetrics(receipt) {
-  const values = [
-    receipt.signal || receipt.verdict?.decision || "-",
-    percentText(receipt.confidence),
-    receipt.unavailable_data?.length ?? receipt.verdict?.missing_data?.length ?? 0,
-    receipt.ryo_tools_used?.length ?? receipt.ryo?.length ?? 0,
+// Exposed so a demo or an automated check can paint a receipt without live keys.
+window.renderReceipt = renderReceipt;
+
+function renderBanner(receipt) {
+  const banner = el("#bannerVerdict");
+  const signal = receipt.signal || receipt.verdict?.decision || "PENDING";
+  banner.hidden = false;
+  el("#bannerKicker").innerHTML = escapeHtml(receipt.symbol) + " &mdash; the desk rules";
+  const signalNode = el("#bannerSignal");
+  signalNode.textContent = signal;
+  signalNode.className = "banner-signal " + signal;
+  el("#bannerConfidence").textContent = percentText(receipt.confidence) + " confidence";
+}
+
+function renderLeadStory(receipt) {
+  const verdict = receipt.verdict || {};
+  const layer = receipt.reasoning_layer || {};
+  const lead = firstCard(receipt);
+  const hed = lead ? lead.headline : receipt.summary.headline;
+  const dek = receipt.summary.conclusion;
+  const bodyParts = [];
+  if (layer.reasoning || receipt.reasoning) {
+    bodyParts.push(layer.reasoning || receipt.reasoning);
+  }
+  for (const point of verdict.why_it_matters || []) {
+    bodyParts.push(point);
+  }
+  if (!bodyParts.length) {
+    bodyParts.push("The desk reviewed the available evidence and found nothing decision-grade for this token.");
+  }
+  const meta = [
+    ["Signal", receipt.signal],
+    ["Confidence", percentText(receipt.confidence)],
+    ["Market read", layer.market_confirmation || "-"],
+    ["Sentiment", layer.sentiment || "-"],
+    ["Filed by", verdict.generated_by || "desk"],
+    ["Run", receipt.run_id],
   ];
-  all("#metricGrid .metric strong").forEach((node, index) => {
-    node.textContent = values[index];
-  });
+  el("#leadStory").innerHTML =
+    '<h2 class="lead-hed">' +
+    escapeHtml(hed) +
+    '</h2><p class="lead-dek">' +
+    escapeHtml(dek) +
+    '</p><div class="lead-body">' +
+    bodyParts.map((part) => "<p>" + escapeHtml(part) + "</p>").join("") +
+    '</div><div class="lead-meta">' +
+    meta
+      .map(([label, value]) => "<span>" + escapeHtml(label) + ": <b>" + escapeHtml(value || "-") + "</b></span>")
+      .join("") +
+    "</div>";
+}
+
+function renderMarketPulse(receipt) {
+  const pulse = receipt.market_pulse || {};
+  const value = pulse.fear_greed_value;
+  const dial = el("#gaugeDial");
+  const valueNode = el("#gaugeValue");
+  const labelNode = el("#gaugeLabel");
+  const needle = el("#gaugeNeedle");
+  if (value === null || value === undefined) {
+    valueNode.textContent = "N/A";
+    labelNode.textContent = "Unavailable";
+    if (needle) needle.style.transform = "translateX(-50%) rotate(0deg)";
+  } else {
+    valueNode.textContent = String(value);
+    labelNode.textContent = pulse.fear_greed_label || "Fear & Greed";
+    if (needle) {
+      const angle = -90 + (value / 100) * 180;
+      needle.style.transform = "translateX(-50%) rotate(" + angle + "deg)";
+    }
+  }
+  const facts = el("#moodFacts");
+  facts.innerHTML =
+    factRow("Regime", pulse.regime) +
+    factRow("BTC Dominance", pulse.btc_dominance != null ? pulse.btc_dominance.toFixed(1) + "%" : null) +
+    factRow("Breadth", pulse.breadth) +
+    factRow("As of", pulse.as_of ? shortDate(pulse.as_of) : null);
+  el("#moodNote").textContent = pulse.note || "";
+}
+
+function factRow(label, value) {
+  return (
+    "<div><dt>" +
+    escapeHtml(label) +
+    "</dt><dd>" +
+    escapeHtml(value != null && value !== "" ? String(value) : "—") +
+    "</dd></div>"
+  );
+}
+
+function renderRecommendations(receipt) {
+  const box = el("#recommendationBox");
+  const list = el("#recommendationList");
+  const items = receipt.recommendations || [];
+  if (!items.length) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  list.innerHTML = items.map((item) => "<li>" + escapeHtml(item) + "</li>").join("");
+}
+
+function renderDispatch(receipt) {
+  const box = el("#dispatchBox");
+  box.hidden = false;
+  el("#editorNote").textContent = receipt.editor_note || receipt.summary.conclusion;
+  const s = receipt.summary;
+  const cells = [
+    ["Position-changing", s.position_changing_count],
+    ["Watch closely", s.watch_count],
+    ["Unverified", s.unverified_count],
+    ["Noise", s.noise_count],
+  ];
+  el("#scoreboard").innerHTML = cells
+    .map(
+      ([label, count]) =>
+        '<div class="score-cell"><span>' + escapeHtml(label) + "</span><strong>" + count + "</strong></div>",
+    )
+    .join("");
 }
 
 function renderFeed(receipt) {
@@ -242,30 +369,30 @@ function renderFeed(receipt) {
   let totalCards = 0;
 
   for (const section of receipt.sections) {
+    if (!section.cards.length) continue;
     totalCards += section.cards.length;
     const node = template.content.cloneNode(true);
     node.querySelector("h3").textContent = section.label;
-    node.querySelector(".section-header span").textContent = `${section.cards.length} cards`;
-    const list = node.querySelector(".story-list");
-
-    if (!section.cards.length) {
-      list.innerHTML = `<div class="empty-mini">No cards in this bucket</div>`;
-    }
+    node.querySelector(".desk-count").textContent =
+      section.cards.length + (section.cards.length === 1 ? " dispatch" : " dispatches");
+    const list = node.querySelector(".clipping-list");
 
     for (const card of section.cards) {
       const story = storyTemplate.content.cloneNode(true);
-      const article = story.querySelector(".story-row");
+      const article = story.querySelector(".clipping");
       if (card.id === state.selectedCardId) article.classList.add("active");
-      story.querySelector(".impact-pill").textContent = `impact ${card.score.impact}`;
-      story.querySelector(".cluster-pill").textContent = card.narrative_cluster;
-      const dataPill = story.querySelector(".data-pill");
-      dataPill.textContent = card.data_mode;
-      dataPill.classList.add(card.data_mode);
+      story.querySelector(".impact-tag").textContent = "impact " + card.score.impact;
+      story.querySelector(".cluster-tag").textContent = card.narrative_cluster;
+      const dataTag = story.querySelector(".data-tag");
+      dataTag.textContent = card.data_mode;
+      dataTag.classList.add(card.data_mode);
       story.querySelector("h4").textContent = card.headline;
-      story.querySelector("p").textContent = card.reasoning[0] || card.ryo_alignment;
-      story.querySelector(".story-side strong").textContent = card.score.impact;
-      story.querySelector(".story-side span").textContent = card.recommendation;
-      story.querySelector(".story-hitbox").addEventListener("click", () => {
+      story.querySelector(".clipping-dek").textContent = card.reasoning[0] || card.ryo_alignment;
+      story.querySelector(".clipping-byline").textContent =
+        card.source + " · " + card.sentiment + " · " + card.recommendation;
+      story.querySelector(".clipping-verdict strong").textContent = card.score.impact;
+      story.querySelector(".clipping-verdict span").textContent = card.confidence + " conf.";
+      story.querySelector(".clipping-hit").addEventListener("click", () => {
         state.selectedCardId = card.id;
         renderFeed(receipt);
         renderReceiptDetail(receipt, card);
@@ -276,235 +403,106 @@ function renderFeed(receipt) {
   }
 
   if (!totalCards) {
-    target.innerHTML = `<div class="empty-state">No cards were produced. Check the source availability and run again with live keys.</div>`;
+    target.innerHTML =
+      '<p class="desk-empty">No dispatches cleared the desk. Check the wire status and run again once real keys are live.</p>';
   }
 }
 
 function renderReceiptDetail(receipt, card) {
-  const title = el("#receiptTitle");
   const target = el("#receiptDetail");
-  title.textContent = receipt.symbol
-    ? `${receipt.symbol} ${receipt.signal || receipt.verdict?.decision || "receipt"}`
-    : "Decision receipt";
-
-  if (!card) {
-    target.innerHTML = `
-      <div class="receipt-summary">
-        ${renderVerdictBlock(receipt)}
-        <h3>${escapeHtml(receipt.summary.conclusion)}</h3>
-        ${renderWarnings(receipt.warnings)}
-        ${renderRawJson(receipt)}
-      </div>
-    `;
-    return;
-  }
-
-  target.innerHTML = `
-    <div class="receipt-summary">
-      ${renderVerdictBlock(receipt)}
-      <h3>${escapeHtml(card.headline)}</h3>
-      <p>${escapeHtml(receipt.summary.conclusion)}</p>
-      <div class="detail-grid">
-        ${detailCell("Signal", receipt.signal)}
-        ${detailCell("Confidence", percentText(receipt.confidence))}
-        ${detailCell("Reasoning", receipt.reasoning)}
-        ${detailCell("Next action", receipt.next_action)}
-        ${detailCell("Recommendation", card.recommendation)}
-        ${detailCell("Card confidence", card.confidence)}
-        ${detailCell("Sentiment", card.sentiment)}
-        ${detailCell("Cluster", card.narrative_cluster)}
-        ${detailCell("Source", card.source)}
-        ${detailCell("Run ID", receipt.run_id)}
-      </div>
-      <div>
-        <p class="eyebrow">Reasoning</p>
-        <ol class="detail-list">
-          ${card.reasoning.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-        </ol>
-      </div>
-      <div>
-        <p class="eyebrow">Missing data</p>
-        <p>${card.missing_data.length ? escapeHtml(card.missing_data.join(", ")) : "None declared for this card."}</p>
-      </div>
-      <div>
-        <p class="eyebrow">RYO alignment</p>
-        <p>${escapeHtml(card.ryo_alignment)}</p>
-      </div>
-      <div>
-        <p class="eyebrow">Scoring</p>
-        <div class="detail-grid">
-          ${detailCell("Impact", String(card.score.impact))}
-          ${detailCell("Relevance", nullableScore(card.score.relevance))}
-          ${detailCell("Credibility", nullableScore(card.score.credibility))}
-          ${detailCell("Urgency", nullableScore(card.score.urgency))}
-          ${detailCell("Market confirm", nullableScore(card.score.market_confirmation))}
-          ${detailCell("Uncertainty", nullableScore(card.score.uncertainty))}
-        </div>
-      </div>
-      ${renderSourceLink(card)}
-      ${renderWarnings(receipt.warnings)}
-      ${renderRawJson(receipt)}
-    </div>
-  `;
-}
-
-function renderEvidence(receipt) {
-  const target = el("#evidenceMatrix");
   const verdict = receipt.verdict || {};
   const layer = receipt.reasoning_layer || {};
-  const availabilityCards = receipt.availability.map((item) => ({
-    title: item.source,
-    status: item.status,
-    text: `${item.data_mode} - ${item.detail}`,
-  }));
-  const ryoCards = receipt.ryo.map((item) => ({
-    title: item.tool,
-    status: item.status,
-    text: item.summary || item.warnings.join(", ") || "No summary returned.",
-  }));
-  const cards = [
-    {
-      title: "Reasoning layer signal",
-      status: String(verdict.generated_by || "").startsWith("openai") ? "ok" : "partial",
-      text: `${layer.signal || verdict.decision || "PENDING"} - ${percentText(
-        layer.confidence ?? receipt.confidence,
-      )} confidence - ${layer.next_action || verdict.recommended_next_action || "No action yet."}`,
-    },
-    ...availabilityCards,
-    ...ryoCards,
-  ];
-  if (!cards.length) {
-    target.innerHTML = `<div class="empty-state">No evidence was returned.</div>`;
-    return;
+  const focus = card || firstCard(receipt);
+
+  const head =
+    '<h3 class="rec-hed">' +
+    escapeHtml(focus ? focus.headline : receipt.summary.headline) +
+    "</h3>";
+
+  const grid =
+    '<div class="detail-grid">' +
+    detailCell("Signal", receipt.signal) +
+    detailCell("Confidence", percentText(receipt.confidence)) +
+    detailCell("Market read", layer.market_confirmation) +
+    detailCell("Sentiment", layer.sentiment) +
+    detailCell("Tools used", (layer.ryo_tools_used || []).join(", ")) +
+    detailCell("Next action", receipt.next_action) +
+    "</div>";
+
+  let cardBlock = "";
+  if (focus) {
+    cardBlock =
+      '<p class="eyebrow">Reasoning trace</p><ol class="detail-list">' +
+      focus.reasoning.map((item) => "<li>" + escapeHtml(item) + "</li>").join("") +
+      "</ol>" +
+      '<p class="eyebrow">Missing data</p><p class="small">' +
+      (focus.missing_data.length ? escapeHtml(focus.missing_data.join(", ")) : "None declared for this card.") +
+      "</p>" +
+      '<p class="eyebrow">RYO alignment</p><p class="small">' +
+      escapeHtml(focus.ryo_alignment) +
+      "</p>" +
+      sourceLink(focus);
   }
-  target.innerHTML = cards
-    .map(
-      (card) => `
-        <article class="evidence-card">
-          <h3>
-            <span>${escapeHtml(card.title)}</span>
-            <span class="mini-badge ${escapeHtml(card.status)}">${escapeHtml(card.status)}</span>
-          </h3>
-          <p>${escapeHtml(card.text)}</p>
-        </article>
-      `,
-    )
-    .join("");
+
+  const missing =
+    '<p class="eyebrow">Data we could not get</p><p class="small">' +
+    ((receipt.unavailable_data || []).length
+      ? escapeHtml(receipt.unavailable_data.join(", "))
+      : "Nothing withheld this run.") +
+    "</p>";
+
+  target.innerHTML =
+    head + grid + cardBlock + missing + renderWarnings(receipt.warnings) + renderRawJson(receipt);
 }
 
-function renderVerdictBlock(receipt) {
-  const verdict = receipt.verdict || {};
-  const layer = receipt.reasoning_layer || {};
-  return `
-    <article class="verdict-card">
-      <div class="verdict-top">
-        <div>
-          <p class="eyebrow">RYO-CHAN reasoning layer</p>
-          <h3>${escapeHtml(layer.signal || receipt.signal || verdict.decision || "PENDING")}</h3>
-        </div>
-        <div class="confidence-dial">
-          <strong>${escapeHtml(percentNumber(layer.confidence ?? receipt.confidence ?? verdict.confidence))}</strong>
-          <span>confidence</span>
-        </div>
-      </div>
-      <div class="detail-grid">
-        ${detailCell("Token", layer.symbol || verdict.token_symbol || receipt.symbol)}
-        ${detailCell("Market confirm", layer.market_confirmation || "-")}
-        ${detailCell("Sentiment", layer.sentiment || "-")}
-        ${detailCell("Tools used", (layer.ryo_tools_used || receipt.ryo_tools_used || []).join(", "))}
-        ${detailCell("Generated by", verdict.generated_by || "pending")}
-        ${detailCell("Next action", layer.next_action || verdict.recommended_next_action || "-")}
-        ${detailCell("Replay ID", layer.run_id || receipt.run_id)}
-      </div>
-      <div>
-        <p class="eyebrow">Reasoning</p>
-        <p>${escapeHtml(layer.reasoning || receipt.reasoning || "No reasoning returned yet.")}</p>
-      </div>
-      ${listBlock("Why it matters", verdict.why_it_matters)}
-      ${listBlock("Top global news", verdict.top_global_news)}
-      ${listBlock("RYO market evidence", verdict.ryo_market_evidence)}
-      ${listBlock("Missing data", layer.unavailable_data || verdict.missing_data)}
-    </article>
-  `;
-}
-
-function listBlock(label, items) {
-  if (!items || !items.length) {
-    return `
-      <div>
-        <p class="eyebrow">${escapeHtml(label)}</p>
-        <p class="muted">None declared.</p>
-      </div>
-    `;
-  }
-  return `
-    <div>
-      <p class="eyebrow">${escapeHtml(label)}</p>
-      <ol class="detail-list">
-        ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-      </ol>
-    </div>
-  `;
-}
-
-function renderRawJson(receipt) {
-  return `
-    <details class="raw-json">
-      <summary>Raw JSON for judges</summary>
-      <pre>${escapeHtml(JSON.stringify(receipt, null, 2))}</pre>
-    </details>
-  `;
+function sourceLink(card) {
+  if (!card.url || card.url.startsWith("about:")) return "";
+  return (
+    '<p class="eyebrow">Source</p><p class="small"><a href="' +
+    escapeHtml(card.url) +
+    '" target="_blank" rel="noreferrer">' +
+    escapeHtml(card.url) +
+    "</a></p>"
+  );
 }
 
 function renderWarnings(warnings) {
   if (!warnings || !warnings.length) return "";
-  return `
-    <div>
-      <p class="eyebrow">Warnings</p>
-      <ol class="detail-list">
-        ${warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-      </ol>
-    </div>
-  `;
+  return (
+    '<div class="warn-block"><p class="eyebrow">Editor\u2019s warnings</p><ol class="detail-list">' +
+    warnings.map((item) => "<li>" + escapeHtml(item) + "</li>").join("") +
+    "</ol></div>"
+  );
 }
 
-function renderSourceLink(card) {
-  if (!card.url || card.url.startsWith("about:")) return "";
-  return `
-    <div>
-      <p class="eyebrow">Source link</p>
-      <p><a href="${escapeHtml(card.url)}" target="_blank" rel="noreferrer">${escapeHtml(card.url)}</a></p>
-    </div>
-  `;
+function renderRawJson(receipt) {
+  return (
+    '<details class="raw-json"><summary>Raw record for judges</summary><pre>' +
+    escapeHtml(JSON.stringify(receipt, null, 2)) +
+    "</pre></details>"
+  );
 }
 
 function detailCell(label, value) {
-  return `
-    <div class="detail-cell">
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(value || "-")}</strong>
-    </div>
-  `;
+  return (
+    '<div class="detail-cell"><span>' +
+    escapeHtml(label) +
+    "</span><strong>" +
+    escapeHtml(value || "-") +
+    "</strong></div>"
+  );
 }
 
-function setMode(status, mode) {
-  const badge = el("#modeBadge");
-  badge.textContent = `${status} / ${mode}`;
-  badge.className = `mode-badge ${status} ${mode}`;
+function markup(tag, className, text) {
+  return "<" + tag + ' class="' + className + '">' + escapeHtml(text) + "</" + tag + ">";
 }
 
 function percentText(value) {
   if (value === null || value === undefined || value === "") return "-";
   const numeric = Number(value);
   if (Number.isNaN(numeric)) return String(value);
-  return `${percentNumber(numeric)}%`;
-}
-
-function percentNumber(value) {
-  if (value === null || value === undefined || value === "") return "-";
-  const numeric = Number(value);
-  if (Number.isNaN(numeric)) return String(value);
-  return numeric <= 1 ? Math.round(numeric * 100) : Math.round(numeric);
+  const pct = numeric <= 1 ? Math.round(numeric * 100) : Math.round(numeric);
+  return pct + "%";
 }
 
 function firstCard(receipt) {
@@ -518,11 +516,11 @@ function selectedCard(receipt) {
 }
 
 function valueOfRadio(name) {
-  return el(`input[name="${name}"]:checked`)?.value || "";
+  return el('input[name="' + name + '"]:checked')?.value || "";
 }
 
 function checkedValues(name) {
-  return all(`input[name="${name}"]:checked`).map((node) => node.value);
+  return all('input[name="' + name + '"]:checked').map((node) => node.value);
 }
 
 async function api(path, options = {}) {
@@ -532,18 +530,10 @@ async function api(path, options = {}) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = payload.error?.message || `${response.status} ${response.statusText}`;
+    const message = payload.error?.message || response.status + " " + response.statusText;
     throw new Error(message);
   }
   return payload;
-}
-
-function nullableScore(value) {
-  return value === null || value === undefined ? "n/a" : String(value);
-}
-
-function scoreText(value) {
-  return value === null || value === undefined ? "" : `impact ${value}`;
 }
 
 function shortDate(value) {
