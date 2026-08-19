@@ -31,9 +31,9 @@ use verdict::{build_reasoning_layer_output, build_reasoning_verdict};
 
 /// Run the full pipeline for one request and return a stored-ready receipt.
 ///
-/// Refuses to run until the required keys are present, so no mock data is ever
-/// produced. Failures in a single source degrade to warnings and missing-data
-/// notes rather than aborting the run.
+/// Refuses to run until required keys are present, except explicit RYO mock
+/// mode. Failures in a single source degrade to warnings and missing-data notes
+/// rather than aborting the run.
 pub(crate) async fn build_pulse(
     state: &AppState,
     request: PulseRequest,
@@ -43,7 +43,7 @@ pub(crate) async fn build_pulse(
         return Err(ApiError::new(
             StatusCode::PRECONDITION_REQUIRED,
             "missing_required_keys",
-            "Reasoning runs are disabled until real API keys are configured. No mock data will be generated.",
+            "Reasoning runs are disabled until required API keys are configured. Enable APP_MOCK_RYO=true only for labelled local RYO simulation.",
         )
         .with_detail(serde_json::json!({ "missing_keys": missing_keys })));
     }
@@ -106,7 +106,10 @@ pub(crate) async fn build_pulse(
     if ryo.iter().any(|tool| tool.status == "unavailable") {
         receipt_warnings.push("At least one RYO tool was unavailable. Market confirmation is excluded or marked missing where appropriate.".to_string());
     }
-    let (verdict, ai_warning) = build_reasoning_verdict(
+    if ryo.iter().any(|tool| tool.data_mode == "simulated") {
+        receipt_warnings.push("RYO evidence is simulated because APP_MOCK_RYO=true. Use this for local demos only; live judging requires RYO_MCP_KEY.".to_string());
+    }
+    let (mut verdict, ai_warning) = build_reasoning_verdict(
         state,
         &symbol,
         &summary,
@@ -118,6 +121,26 @@ pub(crate) async fn build_pulse(
     .await;
     if let Some(warning) = ai_warning {
         receipt_warnings.push(warning);
+    }
+    if ryo.iter().any(|tool| tool.data_mode == "simulated") {
+        if verdict.decision == "CONFIRMED" {
+            verdict.decision = "WATCHLIST".to_string();
+        }
+        verdict.confidence = verdict.confidence.min(64);
+        if !verdict
+            .missing_data
+            .iter()
+            .any(|item| item == "live RYO market confirmation")
+        {
+            verdict
+                .missing_data
+                .push("live RYO market confirmation".to_string());
+        }
+        verdict
+            .warnings
+            .push("Mock RYO mode prevents a live CONFIRMED verdict.".to_string());
+        verdict.recommended_next_action =
+            "treat as pre-demo watchlist until live RYO confirms or rejects the thesis".to_string();
     }
     let reasoning_layer = build_reasoning_layer_output(
         &symbol,

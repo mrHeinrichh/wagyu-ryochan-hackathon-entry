@@ -69,7 +69,7 @@ Required:
 
 - RYO MCP/REST key from the organizers.
 - Tavily Free for global news search.
-- OpenAI API for the final reasoning verdict. The default model is `gpt-5.6-luna`; use `gpt-5.6-terra` if you want stronger reasoning and can spend more.
+- OpenAI API for the final reasoning verdict. The default hackathon model is `gpt-5.6-terra`; use `gpt-5.6-sol` only for final polish runs when quality matters more than cost.
 
 Optional:
 
@@ -145,6 +145,17 @@ TAVILY_API_KEY=your_tavily_key
 OPENAI_API_KEY=your_openai_key
 ```
 
+If the RYO builder key has not arrived yet, local demo mode can run with
+simulated RYO evidence:
+
+```bash
+APP_MOCK_RYO=true
+```
+
+Mock mode marks every RYO tool as `partial` with `data_mode=simulated`, adds
+receipt warnings, and prevents a live `CONFIRMED` verdict. Do not use mock mode
+for final judging or present it as real RYO confirmation.
+
 Install frontend dependencies once:
 
 ```bash
@@ -215,7 +226,11 @@ Body:
 }
 ```
 
-Requires `RYO_MCP_KEY`, `TAVILY_API_KEY`, and `OPENAI_API_KEY`. Once those real keys are configured, it creates a decision receipt and stores it in memory for the running process. The response includes both the compact reasoning-layer output and the full receipt:
+Requires `TAVILY_API_KEY` and `OPENAI_API_KEY`. It also requires `RYO_MCP_KEY`
+unless `APP_MOCK_RYO=true` is enabled for a local simulated demo. Once those
+keys or mock mode are configured, it creates a decision receipt and stores it in
+memory for the running process. The response includes both the compact
+reasoning-layer output and the full receipt:
 
 ```json
 {
@@ -234,7 +249,8 @@ Requires `RYO_MCP_KEY`, `TAVILY_API_KEY`, and `OPENAI_API_KEY`. Once those real 
 }
 ```
 
-When required live keys are missing, the endpoint returns `428 missing_required_keys` and creates no receipt.
+When required keys are missing, the endpoint returns `428 missing_required_keys`
+and creates no receipt.
 
 ### `GET /api/receipts`
 
@@ -278,11 +294,12 @@ Removes a watched token.
 
 This is directly aligned with the hackathon scoring.
 
-- Missing `RYO_MCP_KEY`, `TAVILY_API_KEY`, or `OPENAI_API_KEY`: `/reason` returns `428 missing_required_keys` and creates no receipt. The app waits for real credentials.
+- Missing `RYO_MCP_KEY`: `/reason` returns `428 missing_required_keys` unless `APP_MOCK_RYO=true`. Mock mode creates clearly labelled simulated RYO evidence for local demos only.
+- Missing `TAVILY_API_KEY` or `OPENAI_API_KEY`: `/reason` returns `428 missing_required_keys` and creates no receipt.
 - Upstream 429 or failed calls: the receipt becomes `partial` and the failing source is recorded under source availability.
 - Missing published time, region, language, or RYO evidence: the card lists those fields under `missing_data`.
 
-Never fabricate placeholder data. Never commit `.env`.
+Never present simulated or placeholder data as live evidence. Never commit `.env`.
 
 ## Demo Flow
 

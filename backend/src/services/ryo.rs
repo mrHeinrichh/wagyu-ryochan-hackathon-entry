@@ -12,6 +12,10 @@ use crate::state::AppState;
 /// Call the six market-intelligence tools RYO exposes and collect their
 /// evidence. A failed call becomes an `unavailable` record, never a gap.
 pub(crate) async fn call_ryo_evidence(state: &AppState, symbol: &str) -> Vec<RyoToolEvidence> {
+    if state.config.ryo_mock_enabled && state.config.ryo_mcp_key.is_none() {
+        return mock_ryo_evidence(symbol);
+    }
+
     let mut evidence = Vec::new();
     evidence.push(
         call_ryo_tool(state, "market_overview", json!({}))
@@ -78,6 +82,133 @@ pub(crate) async fn call_ryo_evidence(state: &AppState, symbol: &str) -> Vec<Ryo
             }),
     );
     evidence
+}
+
+/// Simulated RYO evidence for local demos before the builder key arrives.
+///
+/// The public RYO contract allows `data_mode=simulated`; we use that explicitly
+/// and mark every mocked tool `partial` so the receipt cannot be mistaken for a
+/// live RYO-confirmed decision.
+fn mock_ryo_evidence(symbol: &str) -> Vec<RyoToolEvidence> {
+    vec![
+        mock_ryo_tool(
+            "market_overview",
+            json!({}),
+            "Simulated market regime is mixed: breadth is cautious, Fear & Greed is neutral, and top movers are uneven.",
+            json!({
+                "regime": "mixed",
+                "fear_greed": { "value": 52, "label": "neutral", "simulated": true },
+                "breadth": { "advancing": 46, "declining": 54 },
+                "top_movers": ["BTC", "ETH", symbol]
+            }),
+        ),
+        mock_ryo_tool(
+            "scan_market",
+            json!({ "theme": format!("{symbol} global news impact"), "limit": 12 }),
+            &format!(
+                "Simulated scan ranks {symbol} as a watch candidate, not a confirmed market leader."
+            ),
+            json!({
+                "theme": format!("{symbol} global news impact"),
+                "candidates": [
+                    { "symbol": symbol, "rank": 2, "reason": "news-linked momentum requires live RYO confirmation" },
+                    { "symbol": "BTC", "rank": 1, "reason": "broad-market anchor" },
+                    { "symbol": "ETH", "rank": 3, "reason": "market beta comparison" }
+                ]
+            }),
+        ),
+        mock_ryo_tool(
+            "analyze_token",
+            json!({ "symbol": symbol }),
+            &format!(
+                "Simulated {symbol} analysis shows positive short-window momentum but incomplete confirmation."
+            ),
+            json!({
+                "symbol": symbol,
+                "performance": { "24h": 2.4, "7d": 5.8 },
+                "technicals": { "rsi_14": 58, "atr_14": "moderate" },
+                "verdict": "watchlist"
+            }),
+        ),
+        mock_ryo_tool(
+            "deep_analysis",
+            json!({ "symbol": symbol, "include_perp": true }),
+            &format!(
+                "Simulated deep analysis for {symbol} finds a watchable setup with derivatives evidence unavailable."
+            ),
+            json!({
+                "symbol": symbol,
+                "confluence": "moderate",
+                "catalysts": ["global news attention", "market momentum"],
+                "risks": ["live RYO key missing", "derivatives evidence unavailable"],
+                "preview_plan": { "stance": "watch", "risk": "medium" }
+            }),
+        ),
+        mock_ryo_tool(
+            "compare_tokens",
+            json!({ "symbols": peer_symbols(symbol), "intent": "swing" }),
+            &format!(
+                "Simulated comparison keeps {symbol} on watch against BTC, ETH and BNB/SOL peers."
+            ),
+            json!({
+                "symbols": peer_symbols(symbol),
+                "intent": "swing",
+                "leader": "BTC",
+                "watched": symbol,
+                "coverage": "simulated common factors only"
+            }),
+        ),
+        mock_ryo_tool(
+            "monitor_market_sentiment_shift",
+            json!({}),
+            "Simulated seven-day sentiment shift is slightly improving but not strong enough for live confirmation.",
+            json!({
+                "time_window": "7d",
+                "fear_greed_change": 6,
+                "market_phase": "recovering",
+                "combined_sentiment": "cautious-positive"
+            }),
+        ),
+    ]
+}
+
+fn mock_ryo_tool(tool: &str, request: Value, summary: &str, data: Value) -> RyoToolEvidence {
+    let result = json!({
+        "schema_version": "mock-2026-08-13",
+        "tool": tool,
+        "status": "partial",
+        "data_mode": "simulated",
+        "as_of": Utc::now().to_rfc3339(),
+        "request": request,
+        "data": data,
+        "summary": { "headline": summary },
+        "availability": [
+            {
+                "source": "RYO mock",
+                "status": "partial",
+                "data_mode": "simulated",
+                "detail": "APP_MOCK_RYO=true and RYO_MCP_KEY is not configured."
+            }
+        ],
+        "warnings": [
+            "Simulated RYO evidence for local demo only. Do not present as live RYO confirmation.",
+            "Replace with the authenticated RYO MCP catalog before final judging."
+        ]
+    });
+    RyoToolEvidence {
+        tool: tool.to_string(),
+        status: "partial".to_string(),
+        data_mode: "simulated".to_string(),
+        as_of: Utc::now().to_rfc3339(),
+        request,
+        summary: Some(summary.to_string()),
+        warnings: vec![
+            "Simulated RYO evidence for local demo only. Do not present as live RYO confirmation."
+                .to_string(),
+            "Replace with the authenticated RYO MCP catalog before final judging.".to_string(),
+        ],
+        result,
+    }
 }
 
 /// Build a small peer set for `compare_tokens`, starting with the symbol.

@@ -36,6 +36,7 @@ pub(crate) struct HealthResponse {
     pub(crate) service: &'static str,
     pub(crate) generated_at: String,
     pub(crate) ryo_configured: bool,
+    pub(crate) ryo_mock_enabled: bool,
     pub(crate) tavily_configured: bool,
     pub(crate) openai_configured: bool,
     pub(crate) coingecko_configured: bool,

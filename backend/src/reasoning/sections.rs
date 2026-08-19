@@ -95,9 +95,12 @@ pub(crate) fn resolve_data_mode(stories: &[NewsStory], ryo: &[RyoToolEvidence]) 
         modes.insert(tool.data_mode.as_str());
     }
     let has_live = modes.contains("live");
+    let has_simulated = modes.contains("simulated");
     let has_user_provided = modes.contains("user-provided");
-    if has_live && has_user_provided {
+    if (has_live && has_user_provided) || (has_simulated && (has_live || has_user_provided)) {
         "mixed".to_string()
+    } else if has_simulated {
+        "simulated".to_string()
     } else if has_live {
         "live".to_string()
     } else if has_user_provided {
@@ -111,7 +114,11 @@ pub(crate) fn resolve_data_mode(stories: &[NewsStory], ryo: &[RyoToolEvidence]) 
 pub(crate) fn resolve_status(stories: &[NewsStory], ryo: &[RyoToolEvidence]) -> String {
     if stories.is_empty() && ryo.iter().all(|tool| tool.status == "unavailable") {
         "unavailable".to_string()
-    } else if stories.is_empty() || ryo.iter().any(|tool| tool.status == "unavailable") {
+    } else if stories.is_empty()
+        || ryo
+            .iter()
+            .any(|tool| tool.status != "ok" || tool.data_mode == "simulated")
+    {
         "partial".to_string()
     } else {
         "ok".to_string()

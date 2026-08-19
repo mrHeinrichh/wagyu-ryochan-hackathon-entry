@@ -188,6 +188,9 @@ fn top_sentiment(sections: &[RankedSection]) -> String {
 
 /// A coarse label for how the market read landed across the run.
 fn market_confirmation_label(sections: &[RankedSection], ryo: &[RyoToolEvidence]) -> String {
+    if ryo.iter().any(|tool| tool.data_mode == "simulated") {
+        return "simulated_unconfirmed".to_string();
+    }
     if ryo.iter().all(|tool| tool.status == "unavailable") {
         return "unavailable".to_string();
     }

@@ -62,6 +62,7 @@ async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
         service: "global-token-news-pulse",
         generated_at: Utc::now().to_rfc3339(),
         ryo_configured: state.config.ryo_mcp_key.is_some(),
+        ryo_mock_enabled: state.config.ryo_mock_enabled,
         tavily_configured: state.config.tavily_api_key.is_some(),
         openai_configured: state.config.openai_api_key.is_some(),
         coingecko_configured: state.config.coingecko_demo_api_key.is_some(),
@@ -84,6 +85,24 @@ async fn tokens() -> Json<Value> {
 /// Proxy the live RYO `/tools` catalog, or an empty list if the key is unset.
 async fn ryo_tools(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
     if state.config.ryo_mcp_key.is_none() {
+        if state.config.ryo_mock_enabled {
+            return Ok(Json(json!({
+                "status": "partial",
+                "data_mode": "simulated",
+                "tools": [
+                    { "name": "market_overview", "description": "Mock market regime, totals, sentiment, breadth and movers." },
+                    { "name": "scan_market", "description": "Mock ranked market shortlist." },
+                    { "name": "analyze_token", "description": "Mock token market and technical analysis." },
+                    { "name": "deep_analysis", "description": "Mock comprehensive token evidence pack." },
+                    { "name": "compare_tokens", "description": "Mock comparison for two to four assets." },
+                    { "name": "monitor_market_sentiment_shift", "description": "Mock seven-day sentiment shift." }
+                ],
+                "warnings": [
+                    "APP_MOCK_RYO=true and RYO_MCP_KEY is not configured.",
+                    "This catalog is simulated for local demo only."
+                ]
+            })));
+        }
         return Ok(Json(json!({
             "status": "unavailable",
             "data_mode": "unknown",

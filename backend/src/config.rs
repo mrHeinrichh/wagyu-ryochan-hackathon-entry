@@ -18,6 +18,7 @@ pub(crate) struct Config {
     pub(crate) coingecko_demo_api_key: Option<String>,
     pub(crate) defillama_enabled: bool,
     pub(crate) dexscreener_enabled: bool,
+    pub(crate) ryo_mock_enabled: bool,
     pub(crate) port: u16,
     pub(crate) watch_loop_enabled: bool,
 }
@@ -39,12 +40,13 @@ impl Config {
             tavily_api_key,
             openai_api_key,
             openai_model: env_optional("OPENAI_MODEL")
-                .unwrap_or_else(|| "gpt-5.6-luna".to_string()),
+                .unwrap_or_else(|| "gpt-5.6-terra".to_string()),
             openai_responses_url: env_optional("OPENAI_RESPONSES_URL")
                 .unwrap_or_else(|| "https://api.openai.com/v1/responses".to_string()),
             coingecko_demo_api_key: env_optional("COINGECKO_DEMO_API_KEY"),
             defillama_enabled: env_bool("DEFILLAMA_ENABLED", false),
             dexscreener_enabled: env_bool("DEXSCREENER_ENABLED", false),
+            ryo_mock_enabled: env_bool("APP_MOCK_RYO", false),
             port: env::var("APP_PORT")
                 .or_else(|_| env::var("PORT"))
                 .ok()
@@ -54,11 +56,12 @@ impl Config {
         }
     }
 
-    /// Names of the required credentials that are still missing. A reasoning
-    /// run is refused until this is empty so we never emit mock data.
+    /// Names of the required credentials that are still missing.
+    /// `RYO_MCP_KEY` can be bypassed only by explicit mock mode, which marks
+    /// every RYO result as simulated.
     pub(crate) fn missing_required_keys(&self) -> Vec<&'static str> {
         let mut missing = Vec::new();
-        if self.ryo_mcp_key.is_none() {
+        if self.ryo_mcp_key.is_none() && !self.ryo_mock_enabled {
             missing.push("RYO_MCP_KEY");
         }
         if self.tavily_api_key.is_none() {
