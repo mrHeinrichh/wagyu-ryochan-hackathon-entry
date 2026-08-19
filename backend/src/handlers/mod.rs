@@ -24,6 +24,7 @@ use crate::domain::{
 };
 use crate::error::ApiError;
 use crate::reasoning::{build_pulse, normalize_symbol};
+use crate::services::coingecko::latest_tokens;
 use crate::services::ryo::ryo_get;
 use crate::state::AppState;
 
@@ -72,14 +73,28 @@ async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
     })
 }
 
-/// The static UI token list. RYO remains the source of market intelligence.
-async fn tokens() -> Json<Value> {
-    Json(json!({
-        "status": "ok",
-        "data_mode": "static-reference",
-        "tokens": default_tokens(),
-        "note": "This starter list exists for UI convenience. RYO MCP/REST remains the source for market intelligence."
-    }))
+/// Latest ranked market tokens, with a built-in list when CoinGecko is down.
+async fn tokens(State(state): State<AppState>) -> Json<Value> {
+    match latest_tokens(&state).await {
+        Ok((tokens, cached, as_of)) => Json(json!({
+            "status": "ok",
+            "data_mode": "live",
+            "source": "CoinGecko",
+            "as_of": as_of,
+            "cached": cached,
+            "tokens": tokens,
+            "warnings": []
+        })),
+        Err(error) => Json(json!({
+            "status": "partial",
+            "data_mode": "static-fallback",
+            "source": "Built-in fallback",
+            "as_of": Utc::now().to_rfc3339(),
+            "cached": false,
+            "tokens": default_tokens(),
+            "warnings": [format!("Live token catalog unavailable: {}", error.message)]
+        })),
+    }
 }
 
 /// Proxy the live RYO `/tools` catalog, or an empty list if the key is unset.

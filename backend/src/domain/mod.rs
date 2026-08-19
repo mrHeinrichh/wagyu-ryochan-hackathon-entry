@@ -15,4 +15,4 @@ pub(crate) use receipt::{
     WatchItem,
 };
 pub(crate) use requests::{HealthResponse, PulseRequest, WatchRequest};
-pub(crate) use tokens::default_tokens;
+pub(crate) use tokens::{TokenInfo, default_tokens};

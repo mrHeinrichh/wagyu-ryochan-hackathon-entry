@@ -12,7 +12,7 @@ use reqwest::Client;
 use tokio::sync::RwLock;
 
 use crate::config::Config;
-use crate::domain::{DecisionReceipt, NewsStory, WatchItem};
+use crate::domain::{DecisionReceipt, NewsStory, TokenInfo, WatchItem};
 
 /// Everything the handlers and background loop need to do their work.
 #[derive(Clone)]
@@ -22,6 +22,7 @@ pub(crate) struct AppState {
     pub(crate) receipts: Arc<RwLock<Vec<DecisionReceipt>>>,
     pub(crate) watchlist: Arc<RwLock<HashMap<String, WatchItem>>>,
     pub(crate) news_cache: Arc<RwLock<HashMap<String, CacheEntry<Vec<NewsStory>>>>>,
+    pub(crate) token_cache: Arc<RwLock<Option<CacheEntry<Vec<TokenInfo>>>>>,
 }
 
 impl AppState {
@@ -33,6 +34,7 @@ impl AppState {
             receipts: Arc::new(RwLock::new(Vec::new())),
             watchlist: Arc::new(RwLock::new(HashMap::new())),
             news_cache: Arc::new(RwLock::new(HashMap::new())),
+            token_cache: Arc::new(RwLock::new(None)),
         }
     }
 }
@@ -42,5 +44,6 @@ impl AppState {
 pub(crate) struct CacheEntry<T> {
     pub(crate) value: T,
     pub(crate) data_mode: String,
+    pub(crate) fetched_at: DateTime<Utc>,
     pub(crate) expires_at: DateTime<Utc>,
 }

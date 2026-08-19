@@ -48,6 +48,7 @@ pub(crate) async fn fetch_news(
             CacheEntry {
                 value: stories.clone(),
                 data_mode: "live".to_string(),
+                fetched_at: Utc::now(),
                 expires_at: Utc::now() + ChronoDuration::minutes(5),
             },
         );
