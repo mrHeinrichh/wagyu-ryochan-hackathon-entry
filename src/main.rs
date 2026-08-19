@@ -195,19 +195,6 @@ struct ReceiptSummary {
     unverified_count: usize,
 }
 
-#[derive(Debug, Serialize, Clone, Default)]
-struct MarketPulse {
-    fear_greed_value: Option<u8>,
-    fear_greed_label: Option<String>,
-    regime: Option<String>,
-    btc_dominance: Option<f64>,
-    total_market_cap_change: Option<f64>,
-    breadth: Option<String>,
-    as_of: Option<String>,
-    available: bool,
-    note: String,
-}
-
 #[derive(Debug, Serialize, Clone)]
 struct ReasoningVerdict {
     decision: String,
@@ -259,9 +246,6 @@ struct DecisionReceipt {
     reasoning_layer: ReasoningLayerOutput,
     summary: ReceiptSummary,
     verdict: ReasoningVerdict,
-    market_pulse: MarketPulse,
-    recommendations: Vec<String>,
-    editor_note: String,
     sections: Vec<RankedSection>,
     stories: Vec<NewsStory>,
     ryo: Vec<RyoToolEvidence>,
@@ -666,11 +650,6 @@ async fn build_pulse(state: &AppState, request: PulseRequest) -> Result<Decision
         ryo.as_slice(),
     );
 
-    let market_pulse = build_market_pulse(ryo.as_slice());
-    let recommendations =
-        build_recommendations(&symbol, &verdict, &summary, &market_pulse, &sections);
-    let editor_note = build_editor_note(&symbol, &verdict, &market_pulse, stories.len());
-
     Ok(DecisionReceipt {
         id: Uuid::new_v4().to_string(),
         run_id,
@@ -691,9 +670,6 @@ async fn build_pulse(state: &AppState, request: PulseRequest) -> Result<Decision
         reasoning_layer,
         summary,
         verdict,
-        market_pulse,
-        recommendations,
-        editor_note,
         sections,
         stories,
         ryo,
@@ -1743,213 +1719,6 @@ fn summarize_receipt(
         noise_count,
         unverified_count,
     }
-}
-
-fn find_number_deep(value: &Value, keys: &[&str]) -> Option<f64> {
-    match value {
-        Value::Object(map) => {
-            for (k, v) in map {
-                let lower = k.to_lowercase();
-                if keys.iter().any(|target| lower.contains(target)) {
-                    if let Some(number) = v.as_f64() {
-                        return Some(number);
-                    }
-                    if let Some(text) = v.as_str() {
-                        if let Ok(parsed) = text.trim().trim_end_matches('%').parse::<f64>() {
-                            return Some(parsed);
-                        }
-                    }
-                }
-                if let Some(found) = find_number_deep(v, keys) {
-                    return Some(found);
-                }
-            }
-            None
-        }
-        Value::Array(items) => items.iter().find_map(|item| find_number_deep(item, keys)),
-        _ => None,
-    }
-}
-
-fn find_string_deep(value: &Value, keys: &[&str]) -> Option<String> {
-    match value {
-        Value::Object(map) => {
-            for (k, v) in map {
-                let lower = k.to_lowercase();
-                if keys.iter().any(|target| lower.contains(target)) {
-                    if let Some(text) = v.as_str() {
-                        if !text.trim().is_empty() {
-                            return Some(text.trim().to_string());
-                        }
-                    }
-                }
-                if let Some(found) = find_string_deep(v, keys) {
-                    return Some(found);
-                }
-            }
-            None
-        }
-        Value::Array(items) => items.iter().find_map(|item| find_string_deep(item, keys)),
-        _ => None,
-    }
-}
-
-fn fear_greed_label(value: u8) -> String {
-    match value {
-        0..=24 => "Extreme Fear",
-        25..=44 => "Fear",
-        45..=54 => "Neutral",
-        55..=74 => "Greed",
-        _ => "Extreme Greed",
-    }
-    .to_string()
-}
-
-fn build_market_pulse(ryo: &[RyoToolEvidence]) -> MarketPulse {
-    let overview = ryo.iter().find(|tool| tool.tool == "market_overview");
-    let Some(overview) = overview else {
-        return MarketPulse {
-            note: "market_overview was not called this run.".to_string(),
-            ..Default::default()
-        };
-    };
-    if overview.status == "unavailable" || overview.result.is_null() {
-        return MarketPulse {
-            as_of: Some(overview.as_of.clone()),
-            available: false,
-            note: "RYO market_overview was unavailable; Fear & Greed left blank rather than faked."
-                .to_string(),
-            ..Default::default()
-        };
-    }
-
-    let result = &overview.result;
-    let fear_greed_value = find_number_deep(result, &["fear_greed", "fear_and_greed", "feargreed"])
-        .or_else(|| find_number_deep(result, &["sentiment_score"]))
-        .map(|value| value.clamp(0.0, 100.0).round() as u8);
-    let fear_greed_label_value = fear_greed_value
-        .map(fear_greed_label)
-        .or_else(|| find_string_deep(result, &["fear_greed_label", "sentiment_label", "classification"]));
-    let regime = find_string_deep(result, &["regime", "market_phase", "phase"]);
-    let btc_dominance = find_number_deep(result, &["btc_dominance", "dominance", "btc_dom"]);
-    let total_market_cap_change =
-        find_number_deep(result, &["total_market_cap_change", "mcap_change", "market_cap_change"]);
-    let breadth = find_string_deep(result, &["breadth"])
-        .or_else(|| find_number_deep(result, &["breadth"]).map(|value| format!("{value:+.0}")));
-
-    let available = fear_greed_value.is_some() || regime.is_some() || btc_dominance.is_some();
-    let note = if available {
-        "Live market regime pulled from RYO market_overview.".to_string()
-    } else {
-        "market_overview responded, but no Fear & Greed field was present; left blank, not faked."
-            .to_string()
-    };
-
-    MarketPulse {
-        fear_greed_value,
-        fear_greed_label: fear_greed_label_value,
-        regime,
-        btc_dominance,
-        total_market_cap_change,
-        breadth,
-        as_of: Some(overview.as_of.clone()),
-        available,
-        note,
-    }
-}
-
-fn build_recommendations(
-    symbol: &str,
-    verdict: &ReasoningVerdict,
-    summary: &ReceiptSummary,
-    pulse: &MarketPulse,
-    sections: &[RankedSection],
-) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-
-    match verdict.decision.as_str() {
-        "CONFIRMED" => out.push(format!(
-            "Signal is CONFIRMED at {}% confidence: treat the top {symbol} narrative as decision-grade and review exposure against your own risk limits.",
-            verdict.confidence
-        )),
-        "WATCHLIST" => out.push(format!(
-            "Signal is WATCHLIST at {}% confidence: keep {symbol} on watch and wait for a second confirming source before acting.",
-            verdict.confidence
-        )),
-        _ => out.push(format!(
-            "Signal is REJECTED at {}% confidence: no defensible reason to change your {symbol} view from this run.",
-            verdict.confidence
-        )),
-    }
-
-    if let Some(value) = pulse.fear_greed_value {
-        let label = pulse
-            .fear_greed_label
-            .clone()
-            .unwrap_or_else(|| fear_greed_label(value));
-        let steer = match value {
-            0..=24 => "Extreme Fear historically rewards patience over panic; size in slowly and avoid forced exits.",
-            25..=44 => "Fear means crowd conviction is low; demand stronger confirmation before adding risk.",
-            45..=54 => "Neutral sentiment gives no crowd edge; let the token-specific evidence decide.",
-            55..=74 => "Greed can extend trends but thins the margin of safety; tighten stops and take partials into strength.",
-            _ => "Extreme Greed is where late entries get punished; protect gains and resist chasing.",
-        };
-        out.push(format!("Market mood is {label} ({value}/100). {steer}"));
-    } else {
-        out.push(
-            "Fear & Greed was unavailable this run, so no crowd-sentiment adjustment was applied (left blank, not assumed neutral).".to_string(),
-        );
-    }
-
-    if summary.position_changing_count > 0 {
-        out.push(format!(
-            "{} position-changing item(s) surfaced. Read those receipts first; they are the only stories worth acting on today.",
-            summary.position_changing_count
-        ));
-    } else if summary.watch_count > 0 {
-        out.push(format!(
-            "Nothing is position-changing yet, but {} watch-level item(s) deserve a second look before the next session.",
-            summary.watch_count
-        ));
-    }
-
-    if !verdict.missing_data.is_empty() {
-        out.push(format!(
-            "Missing data ({}) is reported honestly and was not counted as zero; weight the verdict accordingly.",
-            verdict.missing_data.join(", ")
-        ));
-    }
-
-    let top_headline = sections
-        .iter()
-        .flat_map(|section| section.cards.iter())
-        .max_by_key(|card| card.score.impact)
-        .map(|card| card.headline.clone());
-    if let Some(headline) = top_headline {
-        out.push(format!("Lead story to brief your team on: \"{}\".", compact_headline(&headline, 90)));
-    }
-
-    out.push(verdict.recommended_next_action.clone());
-    out
-}
-
-fn build_editor_note(
-    symbol: &str,
-    verdict: &ReasoningVerdict,
-    pulse: &MarketPulse,
-    story_count: usize,
-) -> String {
-    let mood = pulse
-        .fear_greed_label
-        .clone()
-        .map(|label| format!("with the market in {label}"))
-        .unwrap_or_else(|| "with market mood unavailable".to_string());
-    format!(
-        "Filed on {symbol}: {} sources reviewed {mood}. The desk rules this a {} read - {}",
-        story_count,
-        verdict.decision,
-        verdict.recommended_next_action
-    )
 }
 
 async fn build_reasoning_verdict(
