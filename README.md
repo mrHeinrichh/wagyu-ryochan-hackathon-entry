@@ -1,8 +1,8 @@
-# Wagyu — RYO-CHAN Hackathon Entry
+# Global Token News Pulse — RYO-CHAN Hackathon Entry
 
-Wagyu is our official entry for the **RYO-CHAN Hackathon 2026** (DoraHacks). It is a Global Token News & Reasoning Layer: a Rust-backed agent and dashboard that turns market reads, global news, or a user thesis into an inspectable decision — `CONFIRMED`, `WATCHLIST`, or `REJECTED`.
+Global Token News Pulse is our official entry for the **RYO-CHAN Hackathon 2026** (DoraHacks). It is a Rust-backed agent and decision interface that turns market reads, global news, or a user thesis into an inspectable decision — `CONFIRMED`, `WATCHLIST`, or `REJECTED`.
 
-Wagyu is not another RYO chatbot, wallet, DEX connector, or paper-trading app. It runs separately from the RYO app, calls RYO MCP/REST from the Rust backend, combines that market evidence with a news source or user-supplied thesis, and produces auditable decision receipts.
+It runs separately from the RYO app, calls RYO MCP/REST from the Rust backend, combines that market evidence with global news, and produces durable, shareable decision receipts. Practice plans are simulation-only and cannot place orders.
 
 The product question is:
 
@@ -12,13 +12,14 @@ Did something happen globally that should materially change my view on this toke
 
 ## Entry Details
 
-- **Project name:** Wagyu
+- **Project name:** Global Token News Pulse
 - **Event:** RYO-CHAN Hackathon 2026 (DoraHacks)
 - **Repository:** `wagyu-ryochan-hackathon-entry`
 - **Backend:** Rust (Axum) — chosen for speed and safe, predictable failure handling
 - **Frontend:** Static dashboard styled to match the RYO-CHAN UI (Light / System / Dark)
 - **Core idea:** Composition over invocation. Chain global news + RYO market intelligence + reasoning into one defensible verdict, and show the argument behind it.
 - **Design principle:** Honest degradation — missing data stays `unavailable`, never faked or zeroed.
+- **Repeatability:** Receipts and watchlists persist in SQLite and recover after restart.
 
 Example output:
 
@@ -61,7 +62,11 @@ Example output:
    - Watch closely
    - Unverified or conflicting
    - Noise
-8. Each card opens a decision receipt with sources, RYO calls, reasoning, missing data, confidence, and warnings.
+8. The receipt shows `What changed → Market check → Decision → Next move`, plus the exact invalidation condition.
+9. A risk-bounded practice plan stays `NO ENTRY` until live RYO and direction agree.
+10. Regional evidence is summarized as converging, diverging, mixed, or insufficient coverage.
+11. RYO-CHAN automatically summarizes each receipt in a collapsible, receipt-grounded chat and suggests useful follow-up questions.
+12. A spotlight tutorial and integrated FAQ make every major workflow judgeable without prior product knowledge.
 
 ## Subscriptions
 
@@ -106,17 +111,18 @@ backend/            Rust crate (Axum API + reasoning pipeline)
     main.rs         process bootstrap only: env, state, router, serve
     config.rs       environment-driven configuration
     state.rs        shared AppState and the news cache entry
+    storage.rs      SQLite receipt/watchlist persistence
     error.rs        the shared ApiError type
     util.rs         small dependency-free helpers
     watch.rs        optional background watch loop
     domain/         request/response and receipt data models
     services/       outbound integrations: http, news (Tavily), ryo, openai
-    reasoning/      the scoring/verdict pipeline (build_pulse + submodules)
+    reasoning/      scoring, verdict, decision support, and demo fixture
     handlers/       HTTP handlers and the router
 frontend/           Next.js + TypeScript dashboard
   src/app/          App Router entry points
   src/components/   UI panels for controls, feed, receipt, evidence, sidebar
-  src/lib/          typed API client, formatters, receipt helpers, shared types
+  src/lib/          API client, formatters, receipt/share helpers, shared types
   src/store/        Zustand UI state store
   src/styles/       application stylesheet
   public/assets/    RYO-CHAN mascot and favicon
@@ -155,6 +161,9 @@ APP_MOCK_RYO=true
 Mock mode marks every RYO tool as `partial` with `data_mode=simulated`, adds
 receipt warnings, and prevents a live `CONFIRMED` verdict. Do not use mock mode
 for final judging or present it as real RYO confirmation.
+
+Receipts and watchlists are stored at `backend/data/pulse.db` by default. Set
+`APP_DB_PATH` to override it.
 
 Install frontend dependencies once:
 
@@ -208,7 +217,8 @@ Returns backend, RYO, Tavily, OpenAI, optional source, and watch-loop status.
 
 ### `GET /api/tokens`
 
-Returns a small static token list for the UI. RYO remains the source of market intelligence.
+Returns the latest ranked CoinGecko market tokens with a built-in fallback list.
+RYO remains the source of market intelligence.
 
 ### `POST /api/pulse`
 
@@ -222,14 +232,15 @@ Body:
   "timeframe": "24h",
   "regions": ["Global", "Asia"],
   "sources": ["Tavily", "Crypto-native"],
-  "thesis": "Market momentum is positive, but sentiment shift is incomplete and derivatives data is unavailable."
+  "thesis": "Market momentum is positive, but sentiment shift is incomplete.",
+  "risk_budget_pct": 0.5
 }
 ```
 
 Requires `TAVILY_API_KEY` and `OPENAI_API_KEY`. It also requires `RYO_MCP_KEY`
 unless `APP_MOCK_RYO=true` is enabled for a local simulated demo. Once those
 keys or mock mode are configured, it creates a decision receipt and stores it in
-memory for the running process. The response includes both the compact
+SQLite for replay after restart. The response includes both the compact
 reasoning-layer output and the full receipt:
 
 ```json
@@ -251,6 +262,29 @@ reasoning-layer output and the full receipt:
 
 When required keys are missing, the endpoint returns `428 missing_required_keys`
 and creates no receipt.
+
+### `POST /api/demo`
+
+Accepts the same request body as `/reason`, but uses a deterministic four-region
+news fixture and simulated RYO evidence. It needs no external API keys and every
+sample field is labelled `simulated`. The dashboard's **Try sample** button uses
+this route so judges can evaluate the full workflow immediately.
+
+### `POST /api/chat`
+
+Answers a product or receipt question using the configured OpenAI model and a
+compact copy of the selected receipt. The assistant is instructed not to add
+market facts that are absent from the receipt. If OpenAI is unavailable, the
+endpoint returns a deterministic receipt summary with a warning instead of
+breaking the chat.
+
+```json
+{
+  "receipt_id": "receipt-or-run-id",
+  "question": "What is the biggest risk in this receipt?",
+  "history": []
+}
+```
 
 ### `GET /api/receipts`
 
@@ -298,18 +332,24 @@ This is directly aligned with the hackathon scoring.
 - Missing `TAVILY_API_KEY` or `OPENAI_API_KEY`: `/reason` returns `428 missing_required_keys` and creates no receipt.
 - Upstream 429 or failed calls: the receipt becomes `partial` and the failing source is recorded under source availability.
 - Missing published time, region, language, or RYO evidence: the card lists those fields under `missing_data`.
+- Warm news and token caches provide a last-known response during short upstream interruptions.
+- SQLite keeps receipts and watchlists available after process restart; write failures are surfaced in the receipt.
+- The deterministic Rust verdict remains available when OpenAI fails during a configured live run.
+- The assistant falls back to the stored receipt when its OpenAI call fails; it never fabricates a conversational answer from unavailable evidence.
 
 Never present simulated or placeholder data as live evidence. Never commit `.env`.
 
 ## Demo Flow
 
-1. Open the dashboard.
-2. Show backend health and source status.
-3. Run a pulse for `SOL`.
-4. Open the top card and show the reasoning.
-5. Show source availability and RYO tool statuses.
-6. Add `SOL` to the watchlist.
-7. Explain that watch mode creates receipts only for material changes when enabled.
+1. Open the dashboard and click **Try sample**; no setup is required.
+2. Read the verdict, confidence, four-step decision path, and invalidation condition.
+3. Show that the practice plan remains `NO ENTRY` because RYO is simulated.
+4. Compare the regional strip and the three highest-impact stories.
+5. Open **Research details** to show source health, charts, and raw evidence.
+6. Open RYO-CHAN to show the automatic typed summary, ask a receipt question, and open the FAQ.
+7. Start **Tour** to demonstrate the spotlight walkthrough and mobile-friendly controls.
+8. Copy the deep link or export the social image and JSON receipt.
+9. Restart the backend and reopen the same receipt to demonstrate repeatability.
 
 ## Submission Checklist
 

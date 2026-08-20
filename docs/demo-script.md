@@ -1,25 +1,25 @@
-# Three-Minute Demo Script
+# Ninety-Second Judge Demo
 
-## 0:00 - 0:20
+## 0:00 - 0:15
 
-This is the RYO Global Token Reasoning Layer, a separate RYO-CHAN hackathon app. It does not trade, connect to a wallet, or rebuild the RYO chatbot. It answers one decision question: should this market read change my view on a specific token?
+This is Global Token News Pulse. It answers one decision question: did something happen globally that should materially change my view on this token?
 
-## 0:20 - 0:50
+## 0:15 - 0:35
 
-First, show health: RYO, Tavily and OpenAI are configured. Then select a token, timeframe, regions, source mix, and a news/event thesis. I will run `BNB` with: market momentum is positive, but sentiment shift is incomplete and derivatives data is unavailable.
+Choose `BNB` and click **Try sample**. The sample is deterministic, requires no keys, and labels every news and RYO input as simulated. A live run uses the same receipt contract.
 
-## 0:50 - 1:30
+## 0:35 - 0:55
 
-The output starts with a signal: `CONFIRMED`, `WATCHLIST`, or `REJECTED`. Under it, the evidence buckets are ranked by decision impact, not chronology. This avoids the hackathon anti-pattern: a wall of charts or headlines with no argument.
+Read the decision path: what changed, RYO market check, decision, and next move. Then show **What changes this**. This is the explicit cause-and-effect trail, not a wall of headlines.
 
-## 1:30 - 2:10
+## 0:55 - 1:10
 
-Open the receipt. The first card is the reasoning-layer verdict: signal, confidence, next action, why it matters, RYO evidence and missing data. Then open the top evidence card to show the narrative cluster, sentiment and scoring.
+The paper plan says `NO ENTRY`: simulated evidence cannot unlock a position. With live confirmation it records an entry condition, ATR-based stop policy, 2R target, and the user's risk limit.
 
-## 2:10 - 2:35
+## 1:10 - 1:25
 
-The evidence matrix shows every source and every RYO tool call. The raw JSON drawer is there for judges. If Tavily, RYO, OpenAI or a dependency fails, the receipt is marked partial or unavailable. Missing data stays missing; it is never converted to zero.
+The regional strip shows agreement or disagreement. Open **Research details** for source health, charts, and the full audit trail. Partial, cached, unavailable, and simulated states are visible.
 
-## 2:35 - 3:00
+## 1:25 - 1:30
 
-Watch mode lets the app monitor selected tokens and create a new receipt only when the top narrative materially changes. That gives Track 1 agent behavior while the dashboard satisfies Track 2 readability.
+Copy the deep link or export the decision image. Receipts and watchlists survive a backend restart in SQLite.
