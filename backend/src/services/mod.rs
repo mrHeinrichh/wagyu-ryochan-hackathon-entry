@@ -10,3 +10,4 @@ pub(crate) mod http;
 pub(crate) mod news;
 pub(crate) mod openai;
 pub(crate) mod ryo;
+pub(crate) mod turnstile;

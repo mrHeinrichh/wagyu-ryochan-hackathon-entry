@@ -28,6 +28,7 @@ use crate::safety::GuardAction;
 use crate::services::assistant::answer_chat;
 use crate::services::coingecko::latest_tokens;
 use crate::services::ryo::ryo_get;
+use crate::services::turnstile::{TurnstileAction, verify as verify_turnstile};
 use crate::state::AppState;
 
 /// Build the application router with all API routes, the static file fallback,
@@ -82,6 +83,7 @@ async fn chat(
             "Chat questions must be 800 characters or fewer.",
         ));
     }
+    verify_turnstile(&state, &headers, TurnstileAction::AssistantChat).await?;
     state.safety.check_request(GuardAction::Chat, &headers)?;
 
     let receipt = if let Some(receipt_id) = request.receipt_id.as_deref() {
@@ -120,6 +122,8 @@ async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
         defillama_enabled: state.config.defillama_enabled,
         dexscreener_enabled: state.config.dexscreener_enabled,
         watch_loop_enabled: state.config.watch_loop_enabled,
+        turnstile_configured: state.config.turnstile_secret_key.is_some(),
+        turnstile_required: state.config.turnstile_required,
         persistence: "sqlite",
         guardrails: GuardrailHealth {
             analysis_cooldown_seconds: state.config.analysis_cooldown_seconds,
@@ -193,6 +197,7 @@ async fn create_pulse(
     headers: HeaderMap,
     Json(request): Json<PulseRequest>,
 ) -> Result<Json<DecisionReceipt>, ApiError> {
+    verify_turnstile(&state, &headers, TurnstileAction::MarketAnalysis).await?;
     state
         .safety
         .check_request(GuardAction::Analysis, &headers)?;

@@ -245,7 +245,7 @@ fn rate_limit_error(action: &'static str, retry_after: u64) -> ApiError {
 
 /// Prefer the first proxy-provided address and heavily restrict its shape so
 /// an untrusted header cannot create unbounded or log-hostile keys.
-fn client_key(headers: &HeaderMap) -> String {
+pub(crate) fn client_ip(headers: &HeaderMap) -> Option<String> {
     ["x-forwarded-for", "x-real-ip"]
         .iter()
         .find_map(|name| headers.get(*name))
@@ -255,7 +255,10 @@ fn client_key(headers: &HeaderMap) -> String {
         .filter(|value| value.len() <= 64)
         .and_then(|value| value.parse::<IpAddr>().ok())
         .map(|address| address.to_string())
-        .unwrap_or_else(|| "anonymous".to_string())
+}
+
+fn client_key(headers: &HeaderMap) -> String {
+    client_ip(headers).unwrap_or_else(|| "anonymous".to_string())
 }
 
 #[cfg(test)]

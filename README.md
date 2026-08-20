@@ -175,6 +175,13 @@ tuned with the `APP_*_RATE_LIMIT_*`, `APP_*_COOLDOWN_SECONDS`, and
 Rate-limited responses use HTTP `429`, include `Retry-After`, and never start an
 upstream AI call.
 
+Cloudflare Turnstile can additionally screen live analysis and assistant chat
+before those requests reach a paid provider. Configure the public widget key as
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY`, keep `TURNSTILE_SECRET_KEY` on the backend,
+set `TURNSTILE_EXPECTED_HOSTNAME`, then enable `APP_TURNSTILE_REQUIRED=true`.
+The labelled sample route remains available without a challenge so the core
+product can still be evaluated during an upstream outage.
+
 Install frontend dependencies once:
 
 ```bash

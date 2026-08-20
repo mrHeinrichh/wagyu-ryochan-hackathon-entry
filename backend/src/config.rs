@@ -30,6 +30,10 @@ pub(crate) struct Config {
     pub(crate) chat_global_rate_limit_per_minute: usize,
     pub(crate) ai_rate_limit_per_minute: usize,
     pub(crate) ai_max_concurrency: usize,
+    pub(crate) turnstile_secret_key: Option<String>,
+    pub(crate) turnstile_expected_hostname: Option<String>,
+    pub(crate) turnstile_required: bool,
+    pub(crate) turnstile_siteverify_url: String,
 }
 
 impl Config {
@@ -87,6 +91,13 @@ impl Config {
             ),
             ai_rate_limit_per_minute: env_number("APP_AI_RATE_LIMIT_PER_MINUTE", 30, 1, 600),
             ai_max_concurrency: env_number("APP_AI_MAX_CONCURRENCY", 2, 1, 16),
+            turnstile_secret_key: env_optional("TURNSTILE_SECRET_KEY"),
+            turnstile_expected_hostname: env_optional("TURNSTILE_EXPECTED_HOSTNAME")
+                .map(|hostname| hostname.to_lowercase()),
+            turnstile_required: env_bool("APP_TURNSTILE_REQUIRED", false),
+            turnstile_siteverify_url: env_optional("TURNSTILE_SITEVERIFY_URL").unwrap_or_else(
+                || "https://challenges.cloudflare.com/turnstile/v0/siteverify".to_string(),
+            ),
         }
     }
 

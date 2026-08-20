@@ -39,6 +39,10 @@ services:
         value: "30"
       - key: APP_AI_MAX_CONCURRENCY
         value: "2"
+      - key: APP_TURNSTILE_REQUIRED
+        value: "false"
+      - key: TURNSTILE_EXPECTED_HOSTNAME
+        value: ryo-marketpulse.vercel.app
       - key: RUST_LOG
         value: global_token_news_pulse=info,tower_http=warn
       - key: OPENAI_API_KEY
@@ -46,4 +50,6 @@ services:
       - key: TAVILY_API_KEY
         sync: false
       - key: COINGECKO_DEMO_API_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
         sync: false

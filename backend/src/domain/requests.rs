@@ -74,6 +74,8 @@ pub(crate) struct HealthResponse {
     pub(crate) defillama_enabled: bool,
     pub(crate) dexscreener_enabled: bool,
     pub(crate) watch_loop_enabled: bool,
+    pub(crate) turnstile_configured: bool,
+    pub(crate) turnstile_required: bool,
     pub(crate) persistence: &'static str,
     pub(crate) guardrails: GuardrailHealth,
 }
