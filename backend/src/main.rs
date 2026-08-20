@@ -22,6 +22,7 @@ mod handlers;
 mod reasoning;
 mod services;
 mod state;
+mod storage;
 mod util;
 mod watch;
 
@@ -48,7 +49,7 @@ async fn main() {
         .timeout(Duration::from_secs(45))
         .build()
         .expect("reqwest client");
-    let state = AppState::new(config.clone(), client);
+    let state = AppState::new(config.clone(), client).expect("initialize SQLite persistence");
 
     if config.watch_loop_enabled {
         tokio::spawn(watch::watch_loop(state.clone()));

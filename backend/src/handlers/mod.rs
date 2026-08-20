@@ -19,11 +19,12 @@ use tower_http::{
 };
 
 use crate::domain::{
-    DecisionReceipt, HealthResponse, PulseRequest, ReceiptListItem, WatchItem, WatchRequest,
-    default_tokens,
+    ChatRequest, ChatResponse, DecisionReceipt, HealthResponse, PulseRequest, ReceiptListItem,
+    WatchItem, WatchRequest, default_tokens,
 };
 use crate::error::ApiError;
 use crate::reasoning::{build_pulse, normalize_symbol};
+use crate::services::assistant::answer_chat;
 use crate::services::coingecko::latest_tokens;
 use crate::services::ryo::ryo_get;
 use crate::state::AppState;
@@ -37,6 +38,8 @@ pub(crate) fn router(state: AppState, static_dir: String) -> Router {
         .route("/api/tokens", get(tokens))
         .route("/api/ryo/tools", get(ryo_tools))
         .route("/api/pulse", post(create_pulse))
+        .route("/api/demo", post(create_demo))
+        .route("/api/chat", post(chat))
         .route("/api/reason", post(create_pulse))
         .route("/api/receipts", get(list_receipts))
         .route("/api/receipts/{id}", get(get_receipt))
@@ -56,6 +59,49 @@ pub(crate) fn router(state: AppState, static_dir: String) -> Router {
         .with_state(state)
 }
 
+/// Answer a product or receipt question while keeping missing evidence explicit.
+async fn chat(
+    State(state): State<AppState>,
+    Json(mut request): Json<ChatRequest>,
+) -> Result<Json<ChatResponse>, ApiError> {
+    request.question = request.question.trim().to_string();
+    if request.question.is_empty() {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "chat_question_missing",
+            "Ask a question before sending the message.",
+        ));
+    }
+    if request.question.chars().count() > 800 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "chat_question_too_long",
+            "Chat questions must be 800 characters or fewer.",
+        ));
+    }
+
+    let receipt = if let Some(receipt_id) = request.receipt_id.as_deref() {
+        let receipts = state.receipts.read().await;
+        Some(
+            receipts
+                .iter()
+                .find(|receipt| receipt.id == receipt_id || receipt.run_id == receipt_id)
+                .cloned()
+                .ok_or_else(|| {
+                    ApiError::new(
+                        StatusCode::NOT_FOUND,
+                        "receipt_not_found",
+                        "The assistant could not find that decision receipt.",
+                    )
+                })?,
+        )
+    } else {
+        None
+    };
+
+    Ok(Json(answer_chat(&state, &request, receipt.as_ref()).await))
+}
+
 /// Report which integrations are configured. Always 200.
 async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
     Json(HealthResponse {
@@ -70,6 +116,7 @@ async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
         defillama_enabled: state.config.defillama_enabled,
         dexscreener_enabled: state.config.dexscreener_enabled,
         watch_loop_enabled: state.config.watch_loop_enabled,
+        persistence: "sqlite",
     })
 }
 
@@ -133,9 +180,28 @@ async fn create_pulse(
     State(state): State<AppState>,
     Json(request): Json<PulseRequest>,
 ) -> Result<Json<DecisionReceipt>, ApiError> {
-    let receipt = build_pulse(&state, request).await?;
+    store_pulse(&state, request).await.map(Json)
+}
+
+/// Run the deterministic, fully labelled sample without external API keys.
+async fn create_demo(
+    State(state): State<AppState>,
+    Json(mut request): Json<PulseRequest>,
+) -> Result<Json<DecisionReceipt>, ApiError> {
+    request.demo = true;
+    store_pulse(&state, request).await.map(Json)
+}
+
+async fn store_pulse(state: &AppState, request: PulseRequest) -> Result<DecisionReceipt, ApiError> {
+    let mut receipt = build_pulse(state, request).await?;
+    if let Err(error) = state.storage.save_receipt(&receipt) {
+        receipt.status = "partial".to_string();
+        receipt.warnings.push(format!(
+            "Receipt persistence unavailable: {error}. This run remains available until restart."
+        ));
+    }
     state.receipts.write().await.insert(0, receipt.clone());
-    Ok(Json(receipt))
+    Ok(receipt)
 }
 
 /// List up to the 30 most recent receipts as compact entries.
@@ -173,7 +239,7 @@ async fn get_receipt(
             ApiError::new(
                 StatusCode::NOT_FOUND,
                 "receipt_not_found",
-                "No decision receipt exists for that id in this running process.",
+                "No decision receipt exists for that id.",
             )
         })?;
     Ok(Json(receipt.clone()))
@@ -211,6 +277,13 @@ async fn add_watchlist(
         last_receipt_id: None,
         last_cluster: None,
     };
+    state.storage.save_watch_item(&item).map_err(|error| {
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "watchlist_persistence_error",
+            format!("Could not persist watchlist entry: {error}"),
+        )
+    })?;
     state.watchlist.write().await.insert(symbol, item.clone());
     Ok(Json(item))
 }
@@ -221,6 +294,13 @@ async fn remove_watchlist(
     Path(symbol): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     let symbol = normalize_symbol(&symbol)?;
+    state.storage.delete_watch_item(&symbol).map_err(|error| {
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "watchlist_persistence_error",
+            format!("Could not remove persisted watchlist entry: {error}"),
+        )
+    })?;
     state.watchlist.write().await.remove(&symbol);
     Ok(Json(json!({ "status": "ok", "removed": symbol })))
 }

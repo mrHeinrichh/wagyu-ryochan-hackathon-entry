@@ -81,6 +81,8 @@ pub(crate) fn score_story(
     let recommendation = recommendation_for(&category, &sentiment, &missing_data);
     let confidence = confidence_for(story, ryo_available, impact, missing_data.len());
     let ryo_alignment = ryo_alignment(&lower, ryo_available, market_confirmation);
+    let attention_reason = attention_reason(&category, &sentiment, impact, urgency);
+    let requires_attention = attention_reason.is_some();
     let reasoning = reasoning_points(
         symbol,
         &cluster,
@@ -119,6 +121,35 @@ pub(crate) fn score_story(
         reasoning,
         category,
         data_mode: story.data_mode.clone(),
+        requires_attention,
+        attention_reason,
+    }
+}
+
+/// Reserve the red attention treatment for position-changing, highly urgent,
+/// or materially bearish evidence. High impact alone is not enough.
+fn attention_reason(
+    category: &str,
+    sentiment: &str,
+    impact: u8,
+    urgency: Option<u8>,
+) -> Option<String> {
+    let urgency = urgency.unwrap_or(0);
+
+    if category == "position-changing" {
+        Some(format!(
+            "This may change a position view: its available-evidence impact is {impact}/100."
+        ))
+    } else if urgency >= 80 {
+        Some(format!(
+            "This needs prompt review because event urgency reached {urgency}/100."
+        ))
+    } else if sentiment == "bearish" && impact >= 65 {
+        Some(format!(
+            "This needs risk attention because bearish evidence reached {impact}/100 impact."
+        ))
+    } else {
+        None
     }
 }
 
@@ -376,4 +407,23 @@ fn reasoning_points(
         points.push(format!("Missing fields: {}.", missing_data.join(", ")));
     }
     points
+}
+
+#[cfg(test)]
+mod attention_tests {
+    use super::attention_reason;
+
+    #[test]
+    fn urgent_evidence_requires_attention() {
+        let reason = attention_reason("watch", "mixed", 62, Some(85));
+
+        assert!(reason.is_some());
+    }
+
+    #[test]
+    fn impact_alone_does_not_trigger_attention() {
+        let reason = attention_reason("watch", "bullish", 92, Some(40));
+
+        assert!(reason.is_none());
+    }
 }

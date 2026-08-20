@@ -4,6 +4,7 @@
 //! consistent status/JSON handling and return `ApiError` on failure so the
 //! caller can decide how to degrade.
 
+pub(crate) mod assistant;
 pub(crate) mod coingecko;
 pub(crate) mod http;
 pub(crate) mod news;

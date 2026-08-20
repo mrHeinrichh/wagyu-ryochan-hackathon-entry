@@ -1,11 +1,11 @@
 //! The receipt data model: news, RYO evidence, scores, sections, and the final
 //! decision receipt returned to the UI and stored for replay.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// One integration's availability line for a run (Tavily, a RYO tool, etc.).
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct SourceAvailability {
     pub(crate) source: String,
     pub(crate) status: String,
@@ -15,7 +15,7 @@ pub(crate) struct SourceAvailability {
 }
 
 /// A single news item after normalization from the upstream search.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct NewsStory {
     pub(crate) id: String,
     pub(crate) headline: String,
@@ -29,7 +29,7 @@ pub(crate) struct NewsStory {
 }
 
 /// The captured result of one RYO MCP tool call, kept verbatim for provenance.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct RyoToolEvidence {
     pub(crate) tool: String,
     pub(crate) status: String,
@@ -43,7 +43,7 @@ pub(crate) struct RyoToolEvidence {
 
 /// Per-signal sub-scores plus the blended impact. `None` means the input was
 /// unavailable and was excluded from the weighting, never treated as zero.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct StoryScore {
     pub(crate) relevance: Option<u8>,
     pub(crate) credibility: Option<u8>,
@@ -56,7 +56,7 @@ pub(crate) struct StoryScore {
 }
 
 /// A scored, categorized story with its reasoning trace and recommendation.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct StoryCard {
     pub(crate) id: String,
     pub(crate) headline: String,
@@ -76,10 +76,14 @@ pub(crate) struct StoryCard {
     pub(crate) reasoning: Vec<String>,
     pub(crate) category: String,
     pub(crate) data_mode: String,
+    #[serde(default)]
+    pub(crate) requires_attention: bool,
+    #[serde(default)]
+    pub(crate) attention_reason: Option<String>,
 }
 
 /// A named bucket of cards (position-changing, watch, unverified, noise).
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct RankedSection {
     pub(crate) key: String,
     pub(crate) label: String,
@@ -87,7 +91,7 @@ pub(crate) struct RankedSection {
 }
 
 /// Roll-up counts and headline for a run.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct ReceiptSummary {
     pub(crate) headline: String,
     pub(crate) conclusion: String,
@@ -99,7 +103,7 @@ pub(crate) struct ReceiptSummary {
 }
 
 /// The judged verdict, either from OpenAI or the deterministic fallback.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct ReasoningVerdict {
     pub(crate) decision: String,
     pub(crate) confidence: u8,
@@ -114,7 +118,7 @@ pub(crate) struct ReasoningVerdict {
 }
 
 /// The compact reasoning-layer output surfaced at the top level of a receipt.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct ReasoningLayerOutput {
     pub(crate) signal: String,
     pub(crate) symbol: String,
@@ -130,8 +134,54 @@ pub(crate) struct ReasoningLayerOutput {
     pub(crate) run_id: String,
 }
 
+/// One compact, source-attributed step from evidence to action.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub(crate) struct DecisionChainStep {
+    pub(crate) key: String,
+    pub(crate) label: String,
+    pub(crate) detail: String,
+    pub(crate) status: String,
+    pub(crate) source: String,
+}
+
+/// A risk-bounded paper setup. It never represents an executable order.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub(crate) struct PracticePlan {
+    pub(crate) label: String,
+    pub(crate) status: String,
+    pub(crate) stance: String,
+    pub(crate) entry_condition: String,
+    pub(crate) invalidation: String,
+    pub(crate) stop_method: String,
+    pub(crate) target: String,
+    pub(crate) risk_budget_pct: f32,
+    pub(crate) sizing_rule: String,
+    pub(crate) timeframe: String,
+    pub(crate) basis: String,
+    pub(crate) data_mode: String,
+}
+
+/// Region-level roll-up used to make agreement and disagreement legible.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub(crate) struct RegionSignal {
+    pub(crate) region: String,
+    pub(crate) sentiment: String,
+    pub(crate) story_count: usize,
+    pub(crate) average_impact: Option<u8>,
+    pub(crate) position_changing_count: usize,
+    pub(crate) coverage: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub(crate) struct RegionalConvergence {
+    pub(crate) regime: String,
+    pub(crate) summary: String,
+    pub(crate) strongest_disagreement: String,
+    pub(crate) signals: Vec<RegionSignal>,
+}
+
 /// The full, replayable decision receipt returned by a reasoning run.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct DecisionReceipt {
     pub(crate) id: String,
     pub(crate) run_id: String,
@@ -149,6 +199,14 @@ pub(crate) struct DecisionReceipt {
     pub(crate) ryo_tools_used: Vec<String>,
     pub(crate) unavailable_data: Vec<String>,
     pub(crate) next_action: String,
+    #[serde(default)]
+    pub(crate) decision_chain: Vec<DecisionChainStep>,
+    #[serde(default)]
+    pub(crate) invalidation: String,
+    #[serde(default)]
+    pub(crate) practice_plan: PracticePlan,
+    #[serde(default)]
+    pub(crate) regional_convergence: RegionalConvergence,
     pub(crate) reasoning_layer: ReasoningLayerOutput,
     pub(crate) summary: ReceiptSummary,
     pub(crate) verdict: ReasoningVerdict,
@@ -161,7 +219,7 @@ pub(crate) struct DecisionReceipt {
 }
 
 /// A trimmed receipt entry for the history list.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct ReceiptListItem {
     pub(crate) id: String,
     pub(crate) run_id: String,
@@ -176,7 +234,7 @@ pub(crate) struct ReceiptListItem {
 }
 
 /// A token registered for the background watch loop.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct WatchItem {
     pub(crate) symbol: String,
     pub(crate) interval_minutes: u64,

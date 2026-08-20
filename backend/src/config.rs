@@ -19,6 +19,7 @@ pub(crate) struct Config {
     pub(crate) defillama_enabled: bool,
     pub(crate) dexscreener_enabled: bool,
     pub(crate) ryo_mock_enabled: bool,
+    pub(crate) database_path: String,
     pub(crate) port: u16,
     pub(crate) watch_loop_enabled: bool,
 }
@@ -47,6 +48,8 @@ impl Config {
             defillama_enabled: env_bool("DEFILLAMA_ENABLED", false),
             dexscreener_enabled: env_bool("DEXSCREENER_ENABLED", false),
             ryo_mock_enabled: env_bool("APP_MOCK_RYO", false),
+            database_path: env_optional("APP_DB_PATH")
+                .unwrap_or_else(|| format!("{}/data/pulse.db", env!("CARGO_MANIFEST_DIR"))),
             port: env::var("APP_PORT")
                 .or_else(|_| env::var("PORT"))
                 .ok()

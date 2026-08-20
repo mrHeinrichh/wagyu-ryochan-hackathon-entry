@@ -39,6 +39,8 @@ pub(crate) async fn watch_loop(state: AppState) {
         for item in due_items {
             let request = PulseRequest {
                 symbol: item.symbol.clone(),
+                demo: false,
+                risk_budget_pct: Some(0.5),
                 timeframe: Some("24h".to_string()),
                 regions: Some(vec!["Global".to_string()]),
                 sources: Some(vec!["Tavily".to_string()]),
@@ -53,15 +55,29 @@ pub(crate) async fn watch_loop(state: AppState) {
                         && top_cluster != item.last_cluster;
                     let now = Utc::now();
                     let next = now + ChronoDuration::minutes(item.interval_minutes as i64);
-                    let mut watchlist = state.watchlist.write().await;
-                    if let Some(current) = watchlist.get_mut(&item.symbol) {
-                        current.last_checked_at = Some(now.to_rfc3339());
-                        current.next_check_at = Some(next.to_rfc3339());
-                        if material {
-                            current.last_receipt_id = Some(receipt.id.clone());
-                            current.last_cluster = top_cluster;
-                            state.receipts.write().await.insert(0, receipt);
+                    let mut persisted_watch_item = None;
+                    {
+                        let mut watchlist = state.watchlist.write().await;
+                        if let Some(current) = watchlist.get_mut(&item.symbol) {
+                            current.last_checked_at = Some(now.to_rfc3339());
+                            current.next_check_at = Some(next.to_rfc3339());
+                            if material {
+                                current.last_receipt_id = Some(receipt.id.clone());
+                                current.last_cluster = top_cluster;
+                            }
+                            persisted_watch_item = Some(current.clone());
                         }
+                    }
+                    if let Some(current) = persisted_watch_item
+                        && let Err(error) = state.storage.save_watch_item(&current)
+                    {
+                        warn!("watch persistence failed for {}: {}", item.symbol, error);
+                    }
+                    if material {
+                        if let Err(error) = state.storage.save_receipt(&receipt) {
+                            warn!("receipt persistence failed for {}: {}", item.symbol, error);
+                        }
+                        state.receipts.write().await.insert(0, receipt);
                     }
                 }
                 Err(error) => {

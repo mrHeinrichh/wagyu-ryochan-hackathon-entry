@@ -1,6 +1,7 @@
 # Build output
 /target
 backend/target
+backend/data/
 
 # Secrets
 .env

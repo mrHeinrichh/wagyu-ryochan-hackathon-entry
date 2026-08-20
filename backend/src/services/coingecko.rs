@@ -19,6 +19,7 @@ struct CoinGeckoMarketToken {
     symbol: String,
     name: String,
     market_cap_rank: Option<u32>,
+    image: Option<String>,
 }
 
 /// Fetch the latest ranked market catalog, reusing a five-minute cache.
@@ -85,7 +86,6 @@ pub(crate) async fn latest_tokens(
     let fetched_at = Utc::now();
     state.token_cache.write().await.replace(CacheEntry {
         value: tokens.clone(),
-        data_mode: "live".to_string(),
         fetched_at,
         expires_at: fetched_at + ChronoDuration::minutes(CATALOG_TTL_MINUTES),
     });
@@ -115,6 +115,7 @@ fn normalize_market_tokens(mut market_tokens: Vec<CoinGeckoMarketToken>) -> Vec<
                 name,
                 default_peers: Vec::new(),
                 market_cap_rank: token.market_cap_rank,
+                image_url: token.image,
             })
         })
         .take(100)
@@ -147,21 +148,25 @@ mod tests {
                 symbol: " eth ".to_string(),
                 name: "Ethereum".to_string(),
                 market_cap_rank: Some(2),
+                image: Some("https://assets.example/eth.png".to_string()),
             },
             CoinGeckoMarketToken {
                 symbol: "btc".to_string(),
                 name: "Bitcoin".to_string(),
                 market_cap_rank: Some(1),
+                image: Some("https://assets.example/btc.png".to_string()),
             },
             CoinGeckoMarketToken {
                 symbol: "BTC".to_string(),
                 name: "Duplicate Bitcoin".to_string(),
                 market_cap_rank: Some(30),
+                image: None,
             },
             CoinGeckoMarketToken {
                 symbol: "bad-token".to_string(),
                 name: "Invalid".to_string(),
                 market_cap_rank: Some(3),
+                image: None,
             },
         ]);
 
@@ -169,6 +174,10 @@ mod tests {
         assert_eq!(tokens[0].symbol, "BTC");
         assert_eq!(tokens[0].market_cap_rank, Some(1));
         assert_eq!(tokens[0].default_peers, vec!["ETH"]);
+        assert_eq!(
+            tokens[0].image_url.as_deref(),
+            Some("https://assets.example/btc.png")
+        );
         assert_eq!(tokens[1].symbol, "ETH");
     }
 }

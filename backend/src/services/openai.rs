@@ -4,7 +4,10 @@
 use axum::http::StatusCode;
 use serde_json::{Value, json};
 
-use crate::domain::{NewsStory, RankedSection, ReasoningVerdict, ReceiptSummary, RyoToolEvidence};
+use crate::domain::{
+    ChatTurn, DecisionReceipt, NewsStory, RankedSection, ReasoningVerdict, ReceiptSummary,
+    RyoToolEvidence,
+};
 use crate::error::ApiError;
 use crate::services::http::parse_response;
 use crate::state::AppState;
@@ -101,6 +104,121 @@ pub(crate) async fn openai_verdict(
         parsed,
         input.base,
     ))
+}
+
+/// Ask the model to explain one receipt without introducing outside facts.
+pub(crate) async fn openai_chat(
+    state: &AppState,
+    openai_key: &str,
+    question: &str,
+    history: &[ChatTurn],
+    receipt: Option<&DecisionReceipt>,
+) -> Result<(String, Vec<String>), ApiError> {
+    let history_start = history.len().saturating_sub(8);
+    let conversation = history[history_start..]
+        .iter()
+        .filter(|turn| matches!(turn.role.as_str(), "user" | "assistant"))
+        .map(|turn| {
+            json!({
+                "role": turn.role,
+                "content": turn.content.chars().take(1_200).collect::<String>()
+            })
+        })
+        .collect::<Vec<_>>();
+    let receipt_context = receipt.map(|item| {
+        json!({
+            "id": item.id,
+            "symbol": item.symbol,
+            "timeframe": item.timeframe,
+            "data_mode": item.data_mode,
+            "summary": item.summary,
+            "verdict": item.verdict,
+            "decision_chain": item.decision_chain,
+            "invalidation": item.invalidation,
+            "practice_plan": item.practice_plan,
+            "regional_convergence": item.regional_convergence,
+            "top_cards": compact_cards(item.sections.as_slice()),
+            "ryo_tools": compact_ryo(item.ryo.as_slice()),
+            "warnings": item.warnings
+        })
+    });
+    let context = json!({
+        "product": "RYO Global Token News Pulse",
+        "task": "Answer the user's question using only the supplied product and receipt context.",
+        "question": question,
+        "conversation": conversation,
+        "receipt": receipt_context,
+        "rules": [
+            "Keep the answer under 140 words",
+            "State when evidence is simulated, partial, missing, or unavailable",
+            "Do not add prices, events, or market facts absent from the receipt",
+            "Do not recommend live trading or execution",
+            "Return a direct plain-language answer and exactly three short follow-up questions"
+        ]
+    });
+
+    let response = state
+        .client
+        .post(&state.config.openai_responses_url)
+        .bearer_auth(openai_key)
+        .json(&json!({
+            "model": state.config.openai_model,
+            "input": [
+                {
+                    "role": "system",
+                    "content": "You are RYO-CHAN, a concise crypto research guide. Explain supplied evidence and uncertainty. Return JSON only with answer and suggestions. This is not financial advice."
+                },
+                {
+                    "role": "user",
+                    "content": context.to_string()
+                }
+            ],
+            "text": {
+                "format": {
+                    "type": "json_object"
+                }
+            }
+        }))
+        .send()
+        .await
+        .map_err(|error| {
+            ApiError::new(
+                StatusCode::BAD_GATEWAY,
+                "openai_chat_network_error",
+                error.to_string(),
+            )
+        })?;
+
+    let value = parse_response(response, "openai_chat_error").await?;
+    let text = extract_openai_text(&value).ok_or_else(|| {
+        ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            "openai_chat_empty_response",
+            "OpenAI response did not include assistant text.",
+        )
+    })?;
+    let parsed = parse_json_text(&text)?;
+    let root = parsed.get("response").unwrap_or(&parsed);
+    let answer = read_string(root, &["answer", "message"]).ok_or_else(|| {
+        ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            "openai_chat_answer_missing",
+            "OpenAI did not return an assistant answer.",
+        )
+    })?;
+    let suggestions = read_string_vec(root, &["suggestions", "follow_up_questions"])
+        .unwrap_or_else(|| {
+            vec![
+                "What could invalidate this view?".to_string(),
+                "Which headline matters most?".to_string(),
+                "What should I monitor next?".to_string(),
+            ]
+        })
+        .into_iter()
+        .take(3)
+        .collect();
+
+    Ok((answer, suggestions))
 }
 
 /// Trim the top cards down to the fields the model needs for context.

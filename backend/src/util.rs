@@ -44,6 +44,37 @@ pub(crate) fn infer_region(url: &str) -> Option<String> {
     }
 }
 
+/// Improve the URL-only region guess with explicit geographic language from
+/// the returned headline/snippet. Ambiguous stories remain Global.
+pub(crate) fn infer_region_from_context(url: &str, text: &str) -> Option<String> {
+    let lower = text.to_lowercase();
+    if ["japan", "china", "hong kong", "singapore", "korea", "asia"]
+        .iter()
+        .any(|term| lower.contains(term))
+    {
+        Some("Asia".to_string())
+    } else if [
+        "europe",
+        "european union",
+        " eu ",
+        "united kingdom",
+        "germany",
+        "france",
+    ]
+    .iter()
+    .any(|term| lower.contains(term))
+    {
+        Some("Europe".to_string())
+    } else if ["united states", "u.s.", " us ", "sec ", "federal reserve"]
+        .iter()
+        .any(|term| lower.contains(term))
+    {
+        Some("US".to_string())
+    } else {
+        infer_region(url)
+    }
+}
+
 /// Parse an RFC 3339 timestamp into UTC, returning `None` on any failure.
 pub(crate) fn parse_datetime(value: &str) -> Option<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(value)

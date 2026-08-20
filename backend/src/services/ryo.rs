@@ -89,7 +89,7 @@ pub(crate) async fn call_ryo_evidence(state: &AppState, symbol: &str) -> Vec<Ryo
 /// The public RYO contract allows `data_mode=simulated`; we use that explicitly
 /// and mark every mocked tool `partial` so the receipt cannot be mistaken for a
 /// live RYO-confirmed decision.
-fn mock_ryo_evidence(symbol: &str) -> Vec<RyoToolEvidence> {
+pub(crate) fn mock_ryo_evidence(symbol: &str) -> Vec<RyoToolEvidence> {
     vec![
         mock_ryo_tool(
             "market_overview",

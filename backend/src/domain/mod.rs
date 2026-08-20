@@ -10,9 +10,11 @@ mod requests;
 mod tokens;
 
 pub(crate) use receipt::{
-    DecisionReceipt, NewsStory, RankedSection, ReasoningLayerOutput, ReasoningVerdict,
-    ReceiptListItem, ReceiptSummary, RyoToolEvidence, SourceAvailability, StoryCard, StoryScore,
-    WatchItem,
+    DecisionChainStep, DecisionReceipt, NewsStory, PracticePlan, RankedSection,
+    ReasoningLayerOutput, ReasoningVerdict, ReceiptListItem, ReceiptSummary, RegionSignal,
+    RegionalConvergence, RyoToolEvidence, SourceAvailability, StoryCard, StoryScore, WatchItem,
 };
-pub(crate) use requests::{HealthResponse, PulseRequest, WatchRequest};
+pub(crate) use requests::{
+    ChatRequest, ChatResponse, ChatTurn, HealthResponse, PulseRequest, WatchRequest,
+};
 pub(crate) use tokens::{TokenInfo, default_tokens};

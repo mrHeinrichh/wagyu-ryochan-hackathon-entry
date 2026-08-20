@@ -8,6 +8,8 @@
 //! grouping/summary, and `verdict` for the judged output.
 
 mod classify;
+mod decision_support;
+mod demo;
 mod scoring;
 mod sections;
 mod verdict;
@@ -21,10 +23,15 @@ use uuid::Uuid;
 use crate::domain::{DecisionReceipt, NewsStory, PulseRequest, SourceAvailability};
 use crate::error::ApiError;
 use crate::services::news::{dedupe_stories, fetch_news};
+use crate::services::ryo::mock_ryo_evidence;
 use crate::services::ryo::{availability_from_ryo, call_ryo_evidence};
 use crate::state::AppState;
 use crate::util::compact_headline;
 
+use decision_support::{
+    build_decision_chain, build_invalidation, build_practice_plan, build_regional_convergence,
+};
+use demo::demo_news;
 use scoring::score_stories;
 use sections::{rank_sections, resolve_data_mode, resolve_status, summarize_receipt};
 use verdict::{build_reasoning_layer_output, build_reasoning_verdict};
@@ -38,8 +45,9 @@ pub(crate) async fn build_pulse(
     state: &AppState,
     request: PulseRequest,
 ) -> Result<DecisionReceipt, ApiError> {
+    let demo_mode = request.demo;
     let missing_keys = state.config.missing_required_keys();
-    if !missing_keys.is_empty() {
+    if !demo_mode && !missing_keys.is_empty() {
         return Err(ApiError::new(
             StatusCode::PRECONDITION_REQUIRED,
             "missing_required_keys",
@@ -50,6 +58,7 @@ pub(crate) async fn build_pulse(
 
     let symbol = normalize_symbol(&request.symbol)?;
     let timeframe = normalize_timeframe(request.timeframe.as_deref());
+    let risk_budget_pct = request.risk_budget_pct.unwrap_or(0.5).clamp(0.1, 2.0);
     let user_thesis = normalize_thesis(&request);
     let regions = normalize_list(
         request.regions.unwrap_or_default(),
@@ -64,19 +73,31 @@ pub(crate) async fn build_pulse(
 
     let mut warnings = Vec::new();
     let mut availability = Vec::new();
-    let mut stories = fetch_news(
-        state,
-        &symbol,
-        &timeframe,
-        &regions,
-        &sources,
-        &mut availability,
-    )
-    .await
-    .unwrap_or_else(|error| {
-        warnings.push(error.message);
-        Vec::new()
-    });
+    let mut stories = if demo_mode {
+        availability.push(SourceAvailability {
+            source: "Judge demo fixture".to_string(),
+            status: "partial".to_string(),
+            data_mode: "simulated".to_string(),
+            detail: "Four deterministic sample stories; never presented as live evidence."
+                .to_string(),
+            as_of: created_at.clone(),
+        });
+        demo_news(&symbol, &created_at)
+    } else {
+        fetch_news(
+            state,
+            &symbol,
+            &timeframe,
+            &regions,
+            &sources,
+            &mut availability,
+        )
+        .await
+        .unwrap_or_else(|error| {
+            warnings.push(error.message);
+            Vec::new()
+        })
+    };
     if let Some(story) = user_story(&symbol, user_thesis.as_deref(), stories.len()) {
         availability.push(SourceAvailability {
             source: "User thesis".to_string(),
@@ -90,7 +111,11 @@ pub(crate) async fn build_pulse(
     }
     stories = dedupe_stories(stories);
 
-    let ryo = call_ryo_evidence(state, &symbol).await;
+    let ryo = if demo_mode {
+        mock_ryo_evidence(&symbol)
+    } else {
+        call_ryo_evidence(state, &symbol).await
+    };
     availability.extend(ryo.iter().map(availability_from_ryo));
 
     let cards = score_stories(&symbol, stories.as_slice(), ryo.as_slice());
@@ -109,16 +134,29 @@ pub(crate) async fn build_pulse(
     if ryo.iter().any(|tool| tool.data_mode == "simulated") {
         receipt_warnings.push("RYO evidence is simulated because APP_MOCK_RYO=true. Use this for local demos only; live judging requires RYO_MCP_KEY.".to_string());
     }
-    let (mut verdict, ai_warning) = build_reasoning_verdict(
-        state,
-        &symbol,
-        &summary,
-        &sections,
-        stories.as_slice(),
-        ryo.as_slice(),
-        receipt_warnings.as_slice(),
-    )
-    .await;
+    let (mut verdict, ai_warning) = if demo_mode {
+        let mut verdict = verdict::deterministic_verdict(
+            &symbol,
+            &summary,
+            &sections,
+            stories.as_slice(),
+            ryo.as_slice(),
+            receipt_warnings.as_slice(),
+        );
+        verdict.generated_by = "deterministic-rust-demo".to_string();
+        (verdict, None)
+    } else {
+        build_reasoning_verdict(
+            state,
+            &symbol,
+            &summary,
+            &sections,
+            stories.as_slice(),
+            ryo.as_slice(),
+            receipt_warnings.as_slice(),
+        )
+        .await
+    };
     if let Some(warning) = ai_warning {
         receipt_warnings.push(warning);
     }
@@ -142,6 +180,12 @@ pub(crate) async fn build_pulse(
         verdict.recommended_next_action =
             "treat as pre-demo watchlist until live RYO confirms or rejects the thesis".to_string();
     }
+    if demo_mode {
+        receipt_warnings.push(
+            "Judge demo uses deterministic simulated news and RYO evidence. No item in this receipt is live market data."
+                .to_string(),
+        );
+    }
     let reasoning_layer = build_reasoning_layer_output(
         &symbol,
         &run_id,
@@ -150,6 +194,18 @@ pub(crate) async fn build_pulse(
         &verdict,
         ryo.as_slice(),
     );
+    let invalidation = build_invalidation(&verdict);
+    let decision_chain =
+        build_decision_chain(&sections, &verdict, &reasoning_layer, ryo.as_slice());
+    let practice_plan = build_practice_plan(
+        &timeframe,
+        risk_budget_pct,
+        &verdict,
+        &reasoning_layer,
+        ryo.as_slice(),
+        &invalidation,
+    );
+    let regional_convergence = build_regional_convergence(&regions, &sections);
 
     Ok(DecisionReceipt {
         id: Uuid::new_v4().to_string(),
@@ -168,6 +224,10 @@ pub(crate) async fn build_pulse(
         ryo_tools_used: reasoning_layer.ryo_tools_used.clone(),
         unavailable_data: reasoning_layer.unavailable_data.clone(),
         next_action: reasoning_layer.next_action.clone(),
+        decision_chain,
+        invalidation,
+        practice_plan,
+        regional_convergence,
         reasoning_layer,
         summary,
         verdict,

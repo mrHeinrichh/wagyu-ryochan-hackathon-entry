@@ -10,7 +10,7 @@ use crate::domain::{NewsStory, SourceAvailability};
 use crate::error::ApiError;
 use crate::services::http::parse_response;
 use crate::state::{AppState, CacheEntry};
-use crate::util::{host_from_url, infer_region};
+use crate::util::{host_from_url, infer_region_from_context};
 
 /// Fetch news for a symbol, using the 5-minute cache when it is warm.
 ///
@@ -31,7 +31,7 @@ pub(crate) async fn fetch_news(
         availability.push(SourceAvailability {
             source: "Tavily cache".to_string(),
             status: "ok".to_string(),
-            data_mode: cached.data_mode.clone(),
+            data_mode: "cached".to_string(),
             detail: format!(
                 "Using cached news for {symbol}; expires at {}.",
                 cached.expires_at.to_rfc3339()
@@ -47,7 +47,6 @@ pub(crate) async fn fetch_news(
             cache_key,
             CacheEntry {
                 value: stories.clone(),
-                data_mode: "live".to_string(),
                 fetched_at: Utc::now(),
                 expires_at: Utc::now() + ChronoDuration::minutes(5),
             },
@@ -127,33 +126,32 @@ async fn search_tavily(
         .into_iter()
         .flatten()
         .enumerate()
-        .map(|(index, item)| NewsStory {
-            id: format!("news-{}", index + 1),
-            headline: item
+        .map(|(index, item)| {
+            let url = item.get("url").and_then(Value::as_str).unwrap_or("");
+            let headline = item
                 .get("title")
                 .and_then(Value::as_str)
-                .unwrap_or("Untitled source")
-                .to_string(),
-            source: host_from_url(item.get("url").and_then(Value::as_str).unwrap_or("")),
-            url: item
-                .get("url")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_string(),
-            content: item
+                .unwrap_or("Untitled source");
+            let content = item
                 .get("content")
                 .or_else(|| item.get("snippet"))
                 .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_string(),
-            published_at: item
-                .get("published_date")
-                .or_else(|| item.get("published_at"))
-                .and_then(Value::as_str)
-                .map(str::to_string),
-            region: infer_region(item.get("url").and_then(Value::as_str).unwrap_or("")),
-            language: None,
-            data_mode: "live".to_string(),
+                .unwrap_or("");
+            NewsStory {
+                id: format!("news-{}", index + 1),
+                headline: headline.to_string(),
+                source: host_from_url(url),
+                url: url.to_string(),
+                content: content.to_string(),
+                published_at: item
+                    .get("published_date")
+                    .or_else(|| item.get("published_at"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                region: infer_region_from_context(url, &format!("{headline} {content}")),
+                language: None,
+                data_mode: "live".to_string(),
+            }
         })
         .collect();
     Ok(stories)

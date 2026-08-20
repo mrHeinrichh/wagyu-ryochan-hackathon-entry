@@ -13,6 +13,7 @@ use tokio::sync::RwLock;
 
 use crate::config::Config;
 use crate::domain::{DecisionReceipt, NewsStory, TokenInfo, WatchItem};
+use crate::storage::Persistence;
 
 /// Everything the handlers and background loop need to do their work.
 #[derive(Clone)]
@@ -21,29 +22,33 @@ pub(crate) struct AppState {
     pub(crate) client: Client,
     pub(crate) receipts: Arc<RwLock<Vec<DecisionReceipt>>>,
     pub(crate) watchlist: Arc<RwLock<HashMap<String, WatchItem>>>,
+    pub(crate) storage: Arc<Persistence>,
     pub(crate) news_cache: Arc<RwLock<HashMap<String, CacheEntry<Vec<NewsStory>>>>>,
     pub(crate) token_cache: Arc<RwLock<Option<CacheEntry<Vec<TokenInfo>>>>>,
 }
 
 impl AppState {
     /// Assemble state from a shared config and a ready HTTP client.
-    pub(crate) fn new(config: Arc<Config>, client: Client) -> Self {
-        Self {
+    pub(crate) fn new(config: Arc<Config>, client: Client) -> Result<Self, String> {
+        let storage = Persistence::open(&config.database_path)?;
+        let receipts = storage.load_receipts(100)?;
+        let watchlist = storage.load_watchlist()?;
+        Ok(Self {
             config,
             client,
-            receipts: Arc::new(RwLock::new(Vec::new())),
-            watchlist: Arc::new(RwLock::new(HashMap::new())),
+            receipts: Arc::new(RwLock::new(receipts)),
+            watchlist: Arc::new(RwLock::new(watchlist)),
+            storage: Arc::new(storage),
             news_cache: Arc::new(RwLock::new(HashMap::new())),
             token_cache: Arc::new(RwLock::new(None)),
-        }
+        })
     }
 }
 
-/// A cached value with the data mode it was fetched under and an expiry.
+/// A cached value with its fetch time and expiry.
 #[derive(Debug, Clone)]
 pub(crate) struct CacheEntry<T> {
     pub(crate) value: T,
-    pub(crate) data_mode: String,
     pub(crate) fetched_at: DateTime<Utc>,
     pub(crate) expires_at: DateTime<Utc>,
 }
