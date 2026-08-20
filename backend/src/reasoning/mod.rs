@@ -8,6 +8,8 @@
 //! grouping/summary, and `verdict` for the judged output.
 
 mod classify;
+mod credibility;
+mod debate;
 mod decision_support;
 mod demo;
 mod scoring;
@@ -28,13 +30,14 @@ use crate::services::ryo::{availability_from_ryo, call_ryo_evidence};
 use crate::state::AppState;
 use crate::util::compact_headline;
 
+use credibility::summarize_consensus;
 use decision_support::{
     build_decision_chain, build_invalidation, build_practice_plan, build_regional_convergence,
 };
 use demo::demo_news;
 use scoring::score_stories;
 use sections::{rank_sections, resolve_data_mode, resolve_status, summarize_receipt};
-use verdict::{build_reasoning_layer_output, build_reasoning_verdict};
+use verdict::{VerdictContext, build_reasoning_layer_output, build_reasoning_verdict};
 
 /// Run the full pipeline for one request and return a stored-ready receipt.
 ///
@@ -119,6 +122,7 @@ pub(crate) async fn build_pulse(
     availability.extend(ryo.iter().map(availability_from_ryo));
 
     let cards = score_stories(&symbol, stories.as_slice(), ryo.as_slice());
+    let news_consensus = summarize_consensus(&cards);
     let sections = rank_sections(cards);
     let summary = summarize_receipt(&symbol, &sections, stories.len(), &ryo);
     let data_mode = resolve_data_mode(stories.as_slice(), ryo.as_slice());
@@ -142,18 +146,24 @@ pub(crate) async fn build_pulse(
             stories.as_slice(),
             ryo.as_slice(),
             receipt_warnings.as_slice(),
+            &news_consensus,
         );
         verdict.generated_by = "deterministic-rust-demo".to_string();
+        verdict.scenario_odds.generated_by = "deterministic-rust-demo".to_string();
+        verdict.debate.generated_by = "deterministic-rust-demo".to_string();
         (verdict, None)
     } else {
         build_reasoning_verdict(
             state,
-            &symbol,
-            &summary,
-            &sections,
-            stories.as_slice(),
-            ryo.as_slice(),
-            receipt_warnings.as_slice(),
+            VerdictContext {
+                symbol: &symbol,
+                summary: &summary,
+                sections: &sections,
+                stories: stories.as_slice(),
+                ryo: ryo.as_slice(),
+                warnings: receipt_warnings.as_slice(),
+                news_consensus: &news_consensus,
+            },
         )
         .await
     };
@@ -228,6 +238,7 @@ pub(crate) async fn build_pulse(
         invalidation,
         practice_plan,
         regional_convergence,
+        news_consensus,
         reasoning_layer,
         summary,
         verdict,
@@ -240,6 +251,8 @@ pub(crate) async fn build_pulse(
             "Impact uses weighted available evidence only; unavailable RYO or news data is not converted to zero.".to_string(),
             "Cards are grouped by narrative cluster and sorted by impact, urgency, credibility and market confirmation.".to_string(),
             "A card needs both evidence and an argument. Raw headline volume does not increase score by itself.".to_string(),
+            "Tavily search relevance measures query fit, not publisher credibility; the receipt displays and scores them separately.".to_string(),
+            "Bull, bear and unclear percentages are evidence-weighted research scenarios, not price forecasts or promised accuracy.".to_string(),
         ],
     })
 }
@@ -313,6 +326,7 @@ fn user_story(symbol: &str, thesis: Option<&str>, existing_count: usize) -> Opti
         region: Some("User-supplied".to_string()),
         language: None,
         data_mode: "user-provided".to_string(),
+        search_relevance: None,
     })
 }
 
@@ -341,6 +355,7 @@ mod tests {
             region: Some("Global".to_string()),
             language: Some("en".to_string()),
             data_mode: "live".to_string(),
+            search_relevance: Some(90),
         };
         let ryo = vec![unavailable_ryo(
             "analyze_token",
@@ -369,6 +384,7 @@ mod tests {
                 region: None,
                 language: None,
                 data_mode: "live".to_string(),
+                search_relevance: Some(80),
             },
             NewsStory {
                 id: "2".to_string(),
@@ -380,6 +396,7 @@ mod tests {
                 region: None,
                 language: None,
                 data_mode: "live".to_string(),
+                search_relevance: Some(80),
             },
         ];
         assert_eq!(dedupe_stories(stories).len(), 1);

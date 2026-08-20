@@ -6,17 +6,17 @@ pub(crate) fn demo_news(symbol: &str, created_at: &str) -> Vec<NewsStory> {
     vec![
         story(
             "demo-asia",
-            format!("{symbol} ecosystem activity accelerates across Asian trading venues"),
+            format!("{symbol} regional integration lifts trading volume across Asia"),
             "demo.nikkei.example",
             "Asia",
             format!(
-                "{symbol} adoption momentum and exchange volume improved after a regional integration announcement."
+                "{symbol} regional integration improved exchange volume and adoption momentum."
             ),
             created_at,
         ),
         story(
             "demo-us",
-            format!("US market desks put {symbol} on watch after volume expansion"),
+            format!("Trading desks watch {symbol} as regional integration lifts volume"),
             "demo.marketwire.example",
             "US",
             format!(
@@ -65,5 +65,6 @@ fn story(
         region: Some(region.to_string()),
         language: Some("en".to_string()),
         data_mode: "simulated".to_string(),
+        search_relevance: Some(90),
     }
 }

@@ -10,9 +10,10 @@ mod requests;
 mod tokens;
 
 pub(crate) use receipt::{
-    DecisionChainStep, DecisionReceipt, NewsStory, PracticePlan, RankedSection,
-    ReasoningLayerOutput, ReasoningVerdict, ReceiptListItem, ReceiptSummary, RegionSignal,
-    RegionalConvergence, RyoToolEvidence, SourceAvailability, StoryCard, StoryScore, WatchItem,
+    BullBearDebate, DebateArgument, DebateJudge, DecisionChainStep, DecisionReceipt, NewsConsensus,
+    NewsStory, NewsVerification, PracticePlan, RankedSection, ReasoningLayerOutput,
+    ReasoningVerdict, ReceiptListItem, ReceiptSummary, RegionSignal, RegionalConvergence,
+    RyoToolEvidence, ScenarioOdds, SourceAvailability, StoryCard, StoryScore, WatchItem,
 };
 pub(crate) use requests::{
     ChatRequest, ChatResponse, ChatTurn, GuardrailHealth, HealthResponse, PulseRequest,

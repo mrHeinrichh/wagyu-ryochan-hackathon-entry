@@ -7,24 +7,38 @@
 use std::collections::BTreeSet;
 
 use crate::domain::{
-    NewsStory, RankedSection, ReasoningLayerOutput, ReasoningVerdict, ReceiptSummary,
-    RyoToolEvidence, StoryCard,
+    NewsConsensus, NewsStory, RankedSection, ReasoningLayerOutput, ReasoningVerdict,
+    ReceiptSummary, RyoToolEvidence, StoryCard,
 };
+use crate::reasoning::debate::build_debate;
 use crate::services::openai::{OpenAiVerdictInput, openai_verdict};
 use crate::state::AppState;
 
 /// Produce the verdict, preferring OpenAI when configured and reachable.
 /// Returns the verdict plus an optional warning describing any fallback.
+pub(crate) struct VerdictContext<'a> {
+    pub(crate) symbol: &'a str,
+    pub(crate) summary: &'a ReceiptSummary,
+    pub(crate) sections: &'a [RankedSection],
+    pub(crate) stories: &'a [NewsStory],
+    pub(crate) ryo: &'a [RyoToolEvidence],
+    pub(crate) warnings: &'a [String],
+    pub(crate) news_consensus: &'a NewsConsensus,
+}
+
 pub(crate) async fn build_reasoning_verdict(
     state: &AppState,
-    symbol: &str,
-    summary: &ReceiptSummary,
-    sections: &[RankedSection],
-    stories: &[NewsStory],
-    ryo: &[RyoToolEvidence],
-    warnings: &[String],
+    input: VerdictContext<'_>,
 ) -> (ReasoningVerdict, Option<String>) {
-    let base = deterministic_verdict(symbol, summary, sections, stories, ryo, warnings);
+    let base = deterministic_verdict(
+        input.symbol,
+        input.summary,
+        input.sections,
+        input.stories,
+        input.ryo,
+        input.warnings,
+        input.news_consensus,
+    );
     let Some(openai_key) = state.config.openai_api_key.as_deref() else {
         let mut fallback = base;
         fallback.generated_by = "deterministic-rust-fallback".to_string();
@@ -41,12 +55,13 @@ pub(crate) async fn build_reasoning_verdict(
         state,
         openai_key,
         OpenAiVerdictInput {
-            symbol,
-            summary,
-            sections,
-            stories,
-            ryo,
-            warnings,
+            symbol: input.symbol,
+            summary: input.summary,
+            sections: input.sections,
+            stories: input.stories,
+            ryo: input.ryo,
+            warnings: input.warnings,
+            news_consensus: input.news_consensus,
             base: base.clone(),
         },
     )
@@ -75,6 +90,7 @@ pub(crate) fn deterministic_verdict(
     stories: &[NewsStory],
     ryo: &[RyoToolEvidence],
     warnings: &[String],
+    news_consensus: &NewsConsensus,
 ) -> ReasoningVerdict {
     let cards = sections
         .iter()
@@ -111,6 +127,13 @@ pub(crate) fn deterministic_verdict(
     let top_global_news = top_global_news(cards.as_slice(), stories);
     let why_it_matters = why_it_matters(summary, cards.as_slice());
     let missing_data = missing_data_for_verdict(cards.as_slice(), stories, ryo);
+    let (scenario_odds, debate) = build_debate(
+        symbol,
+        sections,
+        news_consensus,
+        ryo,
+        missing_data.as_slice(),
+    );
 
     ReasoningVerdict {
         decision: decision.to_string(),
@@ -123,6 +146,8 @@ pub(crate) fn deterministic_verdict(
         warnings: warnings.to_vec(),
         recommended_next_action: recommended_next_action(decision, highest),
         generated_by: "deterministic-rust".to_string(),
+        scenario_odds,
+        debate,
     }
 }
 

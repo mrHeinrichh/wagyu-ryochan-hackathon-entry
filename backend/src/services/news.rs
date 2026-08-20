@@ -10,7 +10,7 @@ use crate::domain::{NewsStory, SourceAvailability};
 use crate::error::ApiError;
 use crate::services::http::parse_response;
 use crate::state::{AppState, CacheEntry};
-use crate::util::{host_from_url, infer_region_from_context};
+use crate::util::{compact_headline, host_from_url, infer_region_from_context};
 
 /// Fetch news for a symbol, using the 5-minute cache when it is warm.
 ///
@@ -42,7 +42,8 @@ pub(crate) async fn fetch_news(
     }
 
     if let Some(key) = state.config.tavily_api_key.as_deref() {
-        let stories = search_tavily(state, key, symbol, timeframe, regions, sources).await?;
+        let (stories, corroboration_complete) =
+            search_tavily(state, key, symbol, timeframe, regions, sources).await?;
         state.news_cache.write().await.insert(
             cache_key,
             CacheEntry {
@@ -53,9 +54,19 @@ pub(crate) async fn fetch_news(
         );
         availability.push(SourceAvailability {
             source: "Tavily".to_string(),
-            status: "ok".to_string(),
+            status: if corroboration_complete { "ok" } else { "partial" }.to_string(),
             data_mode: "live".to_string(),
-            detail: format!("{} stories returned for {symbol}.", stories.len()),
+            detail: if corroboration_complete {
+                format!(
+                    "{} stories returned for {symbol} from discovery plus a focused corroboration search.",
+                    stories.len()
+                )
+            } else {
+                format!(
+                    "{} discovery stories returned for {symbol}; the focused corroboration search was unavailable.",
+                    stories.len()
+                )
+            },
             as_of: Utc::now().to_rfc3339(),
         });
         return Ok(stories);
@@ -90,12 +101,38 @@ async fn search_tavily(
     timeframe: &str,
     regions: &[String],
     sources: &[String],
-) -> Result<Vec<NewsStory>, ApiError> {
+) -> Result<(Vec<NewsStory>, bool), ApiError> {
     let regions_text = regions.join(", ");
     let sources_text = sources.join(", ");
     let query = format!(
         "{symbol} crypto token news market impact {timeframe} regions: {regions_text} sources: {sources_text}"
     );
+    let discovery = tavily_search(state, key, &query, "advanced", 12, timeframe).await?;
+    let mut stories = normalize_results(&discovery, "news");
+    let mut corroboration_complete = false;
+    if let Some(headline) = stories.first().map(|story| story.headline.clone()) {
+        let verification_query = format!(
+            "\"{}\" {symbol} independent confirmation primary official source",
+            compact_headline(&headline, 180)
+        );
+        if let Ok(verification) =
+            tavily_search(state, key, &verification_query, "basic", 6, timeframe).await
+        {
+            stories.extend(normalize_results(&verification, "verify"));
+            corroboration_complete = true;
+        }
+    }
+    Ok((dedupe_stories(stories), corroboration_complete))
+}
+
+async fn tavily_search(
+    state: &AppState,
+    key: &str,
+    query: &str,
+    search_depth: &str,
+    max_results: usize,
+    timeframe: &str,
+) -> Result<Value, ApiError> {
     let response = state
         .client
         .post("https://api.tavily.com/search")
@@ -104,8 +141,9 @@ async fn search_tavily(
             "api_key": key,
             "query": query,
             "topic": "news",
-            "search_depth": "advanced",
-            "max_results": 12,
+            "time_range": tavily_time_range(timeframe),
+            "search_depth": search_depth,
+            "max_results": max_results,
             "include_answer": false,
             "include_raw_content": false
         }))
@@ -118,15 +156,17 @@ async fn search_tavily(
                 error.to_string(),
             )
         })?;
+    parse_response(response, "tavily_error").await
+}
 
-    let value = parse_response(response, "tavily_error").await?;
-    let stories = value
+fn normalize_results(value: &Value, id_prefix: &str) -> Vec<NewsStory> {
+    value
         .get("results")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
         .enumerate()
-        .map(|(index, item)| {
+        .filter_map(|(index, item)| {
             let url = item.get("url").and_then(Value::as_str).unwrap_or("");
             let headline = item
                 .get("title")
@@ -137,8 +177,8 @@ async fn search_tavily(
                 .or_else(|| item.get("snippet"))
                 .and_then(Value::as_str)
                 .unwrap_or("");
-            NewsStory {
-                id: format!("news-{}", index + 1),
+            let story = NewsStory {
+                id: format!("{id_prefix}-{}", index + 1),
                 headline: headline.to_string(),
                 source: host_from_url(url),
                 url: url.to_string(),
@@ -151,10 +191,38 @@ async fn search_tavily(
                 region: infer_region_from_context(url, &format!("{headline} {content}")),
                 language: None,
                 data_mode: "live".to_string(),
-            }
+                search_relevance: item
+                    .get("score")
+                    .and_then(Value::as_f64)
+                    .map(|score| (score * 100.0).round().clamp(0.0, 100.0) as u8),
+            };
+            keep_search_result(&story).then_some(story)
         })
-        .collect();
-    Ok(stories)
+        .collect()
+}
+
+fn keep_search_result(story: &NewsStory) -> bool {
+    let headline = story.headline.to_lowercase();
+    let promotional_forecast = [
+        "price prediction",
+        "price forecast",
+        "could reach $",
+        "will reach $",
+    ]
+    .iter()
+    .any(|phrase| headline.contains(phrase));
+    let relevant_enough = story
+        .search_relevance
+        .is_none_or(|relevance| relevance >= 12);
+    relevant_enough && !promotional_forecast
+}
+
+fn tavily_time_range(timeframe: &str) -> &'static str {
+    match timeframe {
+        "6h" | "24h" => "day",
+        "7d" => "week",
+        _ => "month",
+    }
 }
 
 /// Drop near-duplicate stories that share a source and a normalized headline.
@@ -181,4 +249,35 @@ fn normalize_headline(headline: &str) -> String {
         .take(10)
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::keep_search_result;
+    use crate::domain::NewsStory;
+
+    fn result(headline: &str, relevance: u8) -> NewsStory {
+        NewsStory {
+            id: "1".to_string(),
+            headline: headline.to_string(),
+            source: "example.com".to_string(),
+            url: "https://example.com/story".to_string(),
+            content: "Source context".to_string(),
+            published_at: Some("2026-08-20T00:00:00Z".to_string()),
+            region: Some("Global".to_string()),
+            language: Some("en".to_string()),
+            data_mode: "live".to_string(),
+            search_relevance: Some(relevance),
+        }
+    }
+
+    #[test]
+    fn removes_weak_or_promotional_forecasts() {
+        assert!(!keep_search_result(&result("BNB market update", 5)));
+        assert!(!keep_search_result(&result(
+            "BNB price prediction 2030",
+            90
+        )));
+        assert!(keep_search_result(&result("BNB exploit investigation", 80)));
+    }
 }

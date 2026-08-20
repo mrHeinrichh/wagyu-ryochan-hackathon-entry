@@ -8,6 +8,7 @@ use chrono::{Duration as ChronoDuration, Utc};
 
 use crate::domain::{NewsStory, RyoToolEvidence, StoryCard, StoryScore};
 use crate::reasoning::classify::{narrative_cluster, recommendation_for, sentiment};
+use crate::reasoning::credibility::verify_story;
 use crate::util::{count_hits, parse_datetime};
 
 /// Score every story against the shared RYO evidence.
@@ -33,13 +34,14 @@ pub(crate) fn score_story(
     let lower = text.to_lowercase();
     let cluster = narrative_cluster(&lower);
     let sentiment = sentiment(&lower);
-    let relevance = relevance_score(symbol, &lower);
-    let credibility = credibility_score(&story.source);
+    let relevance = relevance_score(symbol, &lower, story.search_relevance);
+    let verification = verify_story(story, all_stories);
+    let credibility = Some(verification.credibility_score);
     let urgency = urgency_score(&lower, story.published_at.as_deref());
     let novelty = novelty_score(&cluster, all_stories);
     let ryo_available = ryo.iter().any(|item| item.status != "unavailable");
     let market_confirmation = ryo_available.then(|| market_confirmation_score(&lower, ryo));
-    let uncertainty = uncertainty_score(&lower, ryo);
+    let uncertainty = uncertainty_score(&lower, ryo, &verification.claim_status);
 
     let mut missing_data = Vec::new();
     if story.published_at.is_none() {
@@ -53,6 +55,12 @@ pub(crate) fn score_story(
     }
     if !ryo_available {
         missing_data.push("RYO market confirmation".to_string());
+    }
+    if matches!(
+        verification.claim_status.as_str(),
+        "single source" | "user claim"
+    ) {
+        missing_data.push("independent news corroboration".to_string());
     }
 
     let impact = weighted_available_score(&[
@@ -68,7 +76,7 @@ pub(crate) fn score_story(
         || lower.contains("unconfirmed")
         || lower.contains("denies")
         || uncertainty.unwrap_or(0) >= 70;
-    let category = if contradicted || credibility.unwrap_or(0) < 45 {
+    let category = if contradicted || verification.credibility_score < 45 {
         "unverified"
     } else if impact >= 75 {
         "position-changing"
@@ -90,6 +98,7 @@ pub(crate) fn score_story(
         impact,
         market_confirmation,
         &missing_data,
+        &verification.explanation,
     );
 
     StoryCard {
@@ -123,6 +132,7 @@ pub(crate) fn score_story(
         data_mode: story.data_mode.clone(),
         requires_attention,
         attention_reason,
+        verification,
     }
 }
 
@@ -174,20 +184,25 @@ fn weighted_available_score(parts: &[(Option<u8>, f32)]) -> u8 {
 }
 
 /// How directly the story is about this token.
-fn relevance_score(symbol: &str, lower: &str) -> Option<u8> {
+fn relevance_score(symbol: &str, lower: &str, search_relevance: Option<u8>) -> Option<u8> {
     let symbol_lower = symbol.to_lowercase();
-    if lower.contains(&symbol_lower) {
-        Some(92)
+    let textual = if lower.contains(&symbol_lower) {
+        92
     } else if token_alias(symbol)
         .iter()
         .any(|alias| lower.contains(alias))
     {
-        Some(82)
+        82
     } else if lower.contains("crypto") || lower.contains("token") || lower.contains("market") {
-        Some(50)
+        50
     } else {
-        Some(25)
-    }
+        25
+    };
+    Some(search_relevance.map_or(textual, |retrieval| {
+        ((f32::from(textual) * 0.65) + (f32::from(retrieval) * 0.35))
+            .round()
+            .clamp(0.0, 100.0) as u8
+    }))
 }
 
 /// Common long-form aliases for a ticker, used to boost relevance.
@@ -202,32 +217,6 @@ fn token_alias(symbol: &str) -> Vec<&'static str> {
         "CAKE" => vec!["pancakeswap"],
         _ => vec![],
     }
-}
-
-/// Source credibility keyed off the host name.
-fn credibility_score(source: &str) -> Option<u8> {
-    let source = source.to_lowercase();
-    let score = if source.contains("reuters")
-        || source.contains("bloomberg")
-        || source.contains("sec.gov")
-        || source.contains("federalreserve.gov")
-    {
-        92
-    } else if source.contains("coindesk")
-        || source.contains("cointelegraph")
-        || source.contains("theblock")
-        || source.contains("decrypt")
-        || source.contains("blockworks")
-    {
-        82
-    } else if source.contains("blog") || source.contains("medium") || source.contains("substack") {
-        58
-    } else if source.is_empty() {
-        45
-    } else {
-        66
-    };
-    Some(score)
 }
 
 /// Urgency from action words and recency of the published timestamp.
@@ -309,7 +298,7 @@ fn market_confirmation_score(lower: &str, ryo: &[RyoToolEvidence]) -> u8 {
 }
 
 /// Uncertainty from hedging language and any partial/unavailable RYO tools.
-fn uncertainty_score(lower: &str, ryo: &[RyoToolEvidence]) -> Option<u8> {
+fn uncertainty_score(lower: &str, ryo: &[RyoToolEvidence], claim_status: &str) -> Option<u8> {
     let mut score = 15;
     score += (count_hits(
         lower,
@@ -329,6 +318,11 @@ fn uncertainty_score(lower: &str, ryo: &[RyoToolEvidence]) -> Option<u8> {
     }
     if ryo.iter().any(|item| item.status == "unavailable") {
         score += 18;
+    }
+    if matches!(claim_status, "single source" | "user claim") {
+        score += 18;
+    } else if claim_status == "conflicting" {
+        score += 30;
     }
     Some(score.min(100))
 }
@@ -390,6 +384,7 @@ fn reasoning_points(
     impact: u8,
     market_confirmation: Option<u8>,
     missing_data: &[String],
+    verification: &str,
 ) -> Vec<String> {
     let mut points = vec![
         format!(
@@ -399,6 +394,7 @@ fn reasoning_points(
             "Narrative sentiment is {sentiment}; impact score is {impact}/100 after weighting available evidence."
         ),
     ];
+    points.push(format!("News verification: {verification}"));
     match market_confirmation {
         Some(score) => points.push(format!("RYO market confirmation contributes {score}/100 to the score.")),
         None => points.push("RYO market confirmation was unavailable and was excluded from scoring, not treated as zero.".to_string()),

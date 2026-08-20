@@ -48,25 +48,33 @@ Example output:
 1. User selects a token such as `SOL`, `BTC`, `ETH`, or `BNB`.
 2. Backend searches global news through Tavily.
 3. Backend deduplicates and clusters stories into narratives.
-4. Backend calls RYO market intelligence:
+4. A focused second Tavily query looks for independent confirmation of the leading claim.
+5. Every story separates search relevance from publisher authority, checks timestamps and primary-source status, and identifies corroborating or conflicting domains.
+6. Backend calls RYO market intelligence:
    - `market_overview`
    - `scan_market`
    - `analyze_token`
    - `deep_analysis`
    - `compare_tokens`
    - `monitor_market_sentiment_shift`
-5. Backend optionally asks OpenAI for the final reasoning verdict.
-6. Stories are scored using available evidence only.
-7. The UI displays ranked buckets:
+7. A Bull Agent and Bear Agent build opposing cases from the same evidence; the AI Judge compares them, may abstain, and returns bullish, bearish, and unclear scenario odds.
+8. Stories are scored using available evidence only.
+9. The UI displays ranked buckets:
    - Position-changing
    - Watch closely
    - Unverified or conflicting
    - Noise
-8. The receipt shows `What changed → Market check → Decision → Next move`, plus the exact invalidation condition.
-9. A risk-bounded practice plan stays `NO ENTRY` until live RYO and direction agree.
-10. Regional evidence is summarized as converging, diverging, mixed, or insufficient coverage.
-11. RYO-CHAN automatically summarizes each receipt in a collapsible, receipt-grounded chat and suggests useful follow-up questions.
-12. A spotlight tutorial and integrated FAQ make every major workflow judgeable without prior product knowledge.
+10. The receipt shows `What changed → Market check → Decision → Next move`, plus the exact invalidation condition.
+11. A risk-bounded practice plan stays `NO ENTRY` until live RYO and direction agree.
+12. Regional evidence is summarized as converging, diverging, mixed, or insufficient coverage.
+13. RYO-CHAN automatically summarizes each receipt in a collapsible, receipt-grounded chat and suggests useful follow-up questions.
+14. A spotlight tutorial and integrated FAQ make every major workflow judgeable without prior product knowledge.
+
+Credibility is not presented as guaranteed truth. The score explains provenance,
+independent corroboration, conflicts, and evidence completeness. Tavily's result
+score is kept separately as search-query relevance. Each uncached live run uses
+one advanced discovery search and one basic corroboration search; cached runs do
+not repeat those calls.
 
 ## Subscriptions
 

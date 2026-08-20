@@ -26,6 +26,38 @@ pub(crate) struct NewsStory {
     pub(crate) region: Option<String>,
     pub(crate) language: Option<String>,
     pub(crate) data_mode: String,
+    #[serde(default)]
+    pub(crate) search_relevance: Option<u8>,
+}
+
+/// Why one story should or should not be trusted as evidence. This measures
+/// provenance and corroboration, not whether a future market outcome is true.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub(crate) struct NewsVerification {
+    pub(crate) source_class: String,
+    pub(crate) source_authority: u8,
+    pub(crate) credibility_score: u8,
+    pub(crate) credibility_label: String,
+    pub(crate) claim_status: String,
+    pub(crate) independent_source_count: usize,
+    pub(crate) corroborating_sources: Vec<String>,
+    pub(crate) conflicting_sources: Vec<String>,
+    pub(crate) primary_source: bool,
+    pub(crate) explanation: String,
+}
+
+/// Receipt-level agreement summary across independently owned news domains.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub(crate) struct NewsConsensus {
+    pub(crate) credibility_score: u8,
+    pub(crate) credibility_label: String,
+    pub(crate) independent_sources: usize,
+    pub(crate) primary_sources: usize,
+    pub(crate) corroborated_claims: usize,
+    pub(crate) single_source_claims: usize,
+    pub(crate) conflicting_claims: usize,
+    pub(crate) state: String,
+    pub(crate) summary: String,
 }
 
 /// The captured result of one RYO MCP tool call, kept verbatim for provenance.
@@ -80,6 +112,8 @@ pub(crate) struct StoryCard {
     pub(crate) requires_attention: bool,
     #[serde(default)]
     pub(crate) attention_reason: Option<String>,
+    #[serde(default)]
+    pub(crate) verification: NewsVerification,
 }
 
 /// A named bucket of cards (position-changing, watch, unverified, noise).
@@ -114,6 +148,60 @@ pub(crate) struct ReasoningVerdict {
     pub(crate) missing_data: Vec<String>,
     pub(crate) warnings: Vec<String>,
     pub(crate) recommended_next_action: String,
+    pub(crate) generated_by: String,
+    #[serde(default)]
+    pub(crate) scenario_odds: ScenarioOdds,
+    #[serde(default)]
+    pub(crate) debate: BullBearDebate,
+}
+
+/// Evidence-weighted scenarios. These are research judgements, not price
+/// forecasts, and always reserve room for an unclear outcome.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct ScenarioOdds {
+    pub(crate) bullish: u8,
+    pub(crate) bearish: u8,
+    pub(crate) unclear: u8,
+    pub(crate) confidence: u8,
+    pub(crate) basis: String,
+    pub(crate) generated_by: String,
+}
+
+impl Default for ScenarioOdds {
+    fn default() -> Self {
+        Self {
+            bullish: 33,
+            bearish: 33,
+            unclear: 34,
+            confidence: 0,
+            basis: "No scenario judgement is available for this saved receipt.".to_string(),
+            generated_by: "unavailable".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub(crate) struct DebateArgument {
+    pub(crate) agent: String,
+    pub(crate) thesis: String,
+    pub(crate) evidence: Vec<String>,
+    pub(crate) weaknesses: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub(crate) struct DebateJudge {
+    pub(crate) decision: String,
+    pub(crate) confidence: u8,
+    pub(crate) rationale: String,
+    pub(crate) decisive_evidence: String,
+    pub(crate) missing_evidence: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub(crate) struct BullBearDebate {
+    pub(crate) bull: DebateArgument,
+    pub(crate) bear: DebateArgument,
+    pub(crate) judge: DebateJudge,
     pub(crate) generated_by: String,
 }
 
@@ -207,6 +295,8 @@ pub(crate) struct DecisionReceipt {
     pub(crate) practice_plan: PracticePlan,
     #[serde(default)]
     pub(crate) regional_convergence: RegionalConvergence,
+    #[serde(default)]
+    pub(crate) news_consensus: NewsConsensus,
     pub(crate) reasoning_layer: ReasoningLayerOutput,
     pub(crate) summary: ReceiptSummary,
     pub(crate) verdict: ReasoningVerdict,

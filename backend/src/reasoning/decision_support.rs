@@ -329,6 +329,7 @@ mod tests {
             data_mode: "live".to_string(),
             requires_attention: false,
             attention_reason: None,
+            verification: Default::default(),
         };
         let sections = vec![RankedSection {
             key: "watch".to_string(),
