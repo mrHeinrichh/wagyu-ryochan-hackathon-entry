@@ -19,6 +19,8 @@ export interface HealthResponse {
   defillama_enabled: boolean;
   dexscreener_enabled: boolean;
   watch_loop_enabled: boolean;
+  turnstile_configured: boolean;
+  turnstile_required: boolean;
   persistence: string;
   guardrails?: {
     analysis_cooldown_seconds: number;

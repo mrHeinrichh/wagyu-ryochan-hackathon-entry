@@ -10,6 +10,7 @@ import type {
   TokenInfo,
   WatchItem,
 } from "./types";
+import { turnstileHeaders } from "./turnstile";
 
 interface ApiErrorBody {
   error?: { code?: string; message?: string; retry_after_seconds?: number };
@@ -28,9 +29,11 @@ export class ApiRequestError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = new Headers(options.headers);
+  if (!headers.has("content-type")) headers.set("content-type", "application/json");
   const response = await fetch(path, {
-    headers: { "content-type": "application/json" },
     ...options,
+    headers,
   });
   const payload = (await response.json().catch(() => ({}))) as T & ApiErrorBody;
   if (!response.ok) {
@@ -57,12 +60,20 @@ export const api = {
   tokens: () => request<TokensResponse>("/api/tokens"),
   receipts: () => request<ReceiptListItem[]>("/api/receipts"),
   receipt: (id: string) => request<DecisionReceipt>(`/api/receipts/${encodeURIComponent(id)}`),
-  reason: (body: PulseRequestBody) =>
-    request<DecisionReceipt>("/reason", { method: "POST", body: JSON.stringify(body) }),
+  reason: async (body: PulseRequestBody) =>
+    request<DecisionReceipt>("/reason", {
+      method: "POST",
+      headers: await turnstileHeaders("market_analysis"),
+      body: JSON.stringify(body),
+    }),
   demo: (body: PulseRequestBody) =>
     request<DecisionReceipt>("/api/demo", { method: "POST", body: JSON.stringify({ ...body, demo: true }) }),
-  chat: (body: ChatRequestBody) =>
-    request<ChatResponse>("/api/chat", { method: "POST", body: JSON.stringify(body) }),
+  chat: async (body: ChatRequestBody) =>
+    request<ChatResponse>("/api/chat", {
+      method: "POST",
+      headers: await turnstileHeaders("assistant_chat"),
+      body: JSON.stringify(body),
+    }),
   watchlist: () => request<WatchItem[]>("/api/watchlist"),
   addWatch: (body: { symbol: string; interval_minutes: number }) =>
     request<WatchItem>("/api/watchlist", { method: "POST", body: JSON.stringify(body) }),

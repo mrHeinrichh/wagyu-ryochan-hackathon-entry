@@ -128,6 +128,13 @@ body {
   letter-spacing: 0;
 }
 
+.turnstile-executor {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 10000;
+}
+
 button,
 input,
 textarea,

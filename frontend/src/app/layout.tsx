@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "@/styles/app.css";
 
 export const metadata: Metadata = {
@@ -19,12 +20,23 @@ const themeScript = `(() => {
 })();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const turnstileEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim());
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {turnstileEnabled ? (
+          <Script
+            id="cloudflare-turnstile"
+            src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+            strategy="afterInteractive"
+          />
+        ) : null}
+      </body>
     </html>
   );
 }
