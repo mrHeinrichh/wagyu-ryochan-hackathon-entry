@@ -12,7 +12,19 @@ import type {
 } from "./types";
 
 interface ApiErrorBody {
-  error?: { message?: string };
+  error?: { code?: string; message?: string; retry_after_seconds?: number };
+}
+
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+    public readonly retryAfterSeconds?: number,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -23,7 +35,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const payload = (await response.json().catch(() => ({}))) as T & ApiErrorBody;
   if (!response.ok) {
     const message = payload.error?.message ?? `${response.status} ${response.statusText}`;
-    throw new Error(message);
+    const retryHeader = Number(response.headers.get("retry-after"));
+    const retryAfter = payload.error?.retry_after_seconds ?? (Number.isFinite(retryHeader) ? retryHeader : undefined);
+    throw new ApiRequestError(message, response.status, payload.error?.code, retryAfter);
   }
   return payload;
 }

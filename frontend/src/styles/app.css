@@ -2924,6 +2924,12 @@ legend {
   }
 }
 
+.composer-countdown {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 @keyframes assistant-sheet-in {
   from {
     opacity: 0;

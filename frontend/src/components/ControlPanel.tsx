@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Eye, Filter, FlaskConical, LoaderCircle, Play, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, Clock3, Eye, Filter, FlaskConical, LoaderCircle, Play, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { TokensResponse } from "@/lib/api";
 import type { PulseRequestBody, TokenInfo, WatchItem } from "@/lib/types";
@@ -18,6 +18,7 @@ interface ControlPanelProps {
   tokensLoading: boolean;
   watchlist: WatchItem[];
   running: boolean;
+  cooldownSeconds: number;
   onRun: (body: PulseRequestBody) => void;
   onDemo: (body: PulseRequestBody) => void;
   onWatch: (symbol: string) => void;
@@ -31,6 +32,7 @@ export default function ControlPanel({
   tokensLoading,
   watchlist,
   running,
+  cooldownSeconds,
   onRun,
   onDemo,
   onWatch,
@@ -172,10 +174,16 @@ export default function ControlPanel({
             <button
               className="primary-button"
               type="submit"
-              disabled={running || tokensLoading || !normalizedSymbol}
+              disabled={running || cooldownSeconds > 0 || tokensLoading || !normalizedSymbol}
             >
-              {running ? <LoaderCircle className="spin" aria-hidden="true" /> : <Play aria-hidden="true" />}
-              <span>{running ? "Analyzing" : "Analyze"}</span>
+              {running ? (
+                <LoaderCircle className="spin" aria-hidden="true" />
+              ) : cooldownSeconds > 0 ? (
+                <Clock3 aria-hidden="true" />
+              ) : (
+                <Play aria-hidden="true" />
+              )}
+              <span>{running ? "Analyzing" : cooldownSeconds > 0 ? `Wait ${cooldownSeconds}s` : "Analyze"}</span>
             </button>
             <button
               className="secondary-button watch-button"
@@ -189,7 +197,7 @@ export default function ControlPanel({
             <button
               className="secondary-button demo-button"
               type="button"
-              disabled={running || !normalizedSymbol}
+              disabled={running || cooldownSeconds > 0 || !normalizedSymbol}
               onClick={runDemo}
             >
               <FlaskConical aria-hidden="true" />

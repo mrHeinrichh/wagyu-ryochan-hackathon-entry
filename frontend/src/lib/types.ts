@@ -20,6 +20,14 @@ export interface HealthResponse {
   dexscreener_enabled: boolean;
   watch_loop_enabled: boolean;
   persistence: string;
+  guardrails?: {
+    analysis_cooldown_seconds: number;
+    analysis_limit_per_minute: number;
+    chat_cooldown_seconds: number;
+    chat_limit_per_minute: number;
+    ai_limit_per_minute: number;
+    ai_max_concurrency: number;
+  };
 }
 
 export interface TokenInfo {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, Layers3, LoaderCircle, Search } from "lucide-react";
-import { api, type TokensResponse } from "@/lib/api";
+import { ApiRequestError, api, type TokensResponse } from "@/lib/api";
 import { findCard } from "@/lib/receipt";
 import type {
   DecisionReceipt,
@@ -48,6 +48,8 @@ export default function Dashboard() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantTab, setAssistantTab] = useState<AssistantTab>("chat");
   const [resultView, setResultView] = useState<ResultView>("split");
+  const [analysisCooldownUntil, setAnalysisCooldownUntil] = useState(0);
+  const [analysisCooldownSeconds, setAnalysisCooldownSeconds] = useState(0);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -96,6 +98,21 @@ export default function Dashboard() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!analysisCooldownUntil) {
+      setAnalysisCooldownSeconds(0);
+      return;
+    }
+    const update = () => {
+      const remaining = Math.max(0, Math.ceil((analysisCooldownUntil - Date.now()) / 1000));
+      setAnalysisCooldownSeconds(remaining);
+      if (remaining === 0) setAnalysisCooldownUntil(0);
+    };
+    update();
+    const interval = window.setInterval(update, 250);
+    return () => window.clearInterval(interval);
+  }, [analysisCooldownUntil]);
+
   const changeResultView = useCallback((view: ResultView) => {
     setResultView(view);
     window.localStorage.setItem("pulse-result-view", view);
@@ -103,6 +120,8 @@ export default function Dashboard() {
 
   const runPulse = useCallback(
     async (body: PulseRequestBody) => {
+      const defaultCooldown = health?.guardrails?.analysis_cooldown_seconds ?? 12;
+      let cooldown = defaultCooldown;
       setRunning(true);
       setFeedError(null);
       setFeedMode({ status: "partial", mode: "running" });
@@ -112,17 +131,23 @@ export default function Dashboard() {
         setFeedMode({ status: result.status, mode: result.data_mode });
         await loadHistory();
       } catch (error) {
+        if (error instanceof ApiRequestError && error.retryAfterSeconds) {
+          cooldown = error.retryAfterSeconds;
+        }
         setFeedMode({ status: "unavailable", mode: "failed" });
         setFeedError((error as Error).message);
       } finally {
+        setAnalysisCooldownSeconds(cooldown);
+        setAnalysisCooldownUntil(Date.now() + cooldown * 1000);
         setRunning(false);
       }
     },
-    [setReceipt, loadHistory],
+    [setReceipt, loadHistory, health?.guardrails?.analysis_cooldown_seconds],
   );
 
   const runDemo = useCallback(
     async (body: PulseRequestBody) => {
+      let cooldown = 2;
       setRunning(true);
       setFeedError(null);
       setFeedMode({ status: "partial", mode: "simulated" });
@@ -133,9 +158,14 @@ export default function Dashboard() {
         setNotice("Sample receipt loaded. Every input is labelled simulated.");
         await loadHistory();
       } catch (error) {
+        if (error instanceof ApiRequestError && error.retryAfterSeconds) {
+          cooldown = error.retryAfterSeconds;
+        }
         setFeedMode({ status: "unavailable", mode: "failed" });
         setFeedError((error as Error).message);
       } finally {
+        setAnalysisCooldownSeconds(cooldown);
+        setAnalysisCooldownUntil(Date.now() + cooldown * 1000);
         setRunning(false);
       }
     },
@@ -223,6 +253,7 @@ export default function Dashboard() {
           tokensLoading={tokensLoading}
           watchlist={watchlist}
           running={running}
+          cooldownSeconds={analysisCooldownSeconds}
           onRun={runPulse}
           onDemo={runDemo}
           onWatch={addWatch}

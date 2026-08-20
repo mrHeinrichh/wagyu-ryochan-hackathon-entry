@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { ApiRequestError, api } from "@/lib/api";
 import type { ChatResponse, ChatRole, ChatTurn, DecisionReceipt } from "@/lib/types";
 
 export type AssistantTab = "chat" | "faq";
@@ -85,6 +85,8 @@ export default function ResearchAssistant({
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [unread, setUnread] = useState(0);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -144,6 +146,21 @@ export default function ResearchAssistant({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading, open]);
 
+  useEffect(() => {
+    if (!cooldownUntil) {
+      setCooldownSeconds(0);
+      return;
+    }
+    const update = () => {
+      const remaining = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+      setCooldownSeconds(remaining);
+      if (remaining === 0) setCooldownUntil(0);
+    };
+    update();
+    const interval = window.setInterval(update, 250);
+    return () => window.clearInterval(interval);
+  }, [cooldownUntil]);
+
   const history = useMemo<ChatTurn[]>(
     () => messages.map(({ role, content }) => ({ role, content })).slice(-8),
     [messages],
@@ -151,7 +168,8 @@ export default function ResearchAssistant({
 
   const ask = async (prompt: string) => {
     const clean = prompt.trim();
-    if (!clean || loading) return;
+    if (!clean || loading || cooldownSeconds > 0) return;
+    setCooldownUntil(Date.now() + 2_000);
     setQuestion("");
     setMessages((current) => [
       ...current,
@@ -166,6 +184,9 @@ export default function ResearchAssistant({
       });
       setMessages((current) => [...current, responseMessage(response)]);
     } catch (error) {
+      if (error instanceof ApiRequestError && error.retryAfterSeconds) {
+        setCooldownUntil(Date.now() + error.retryAfterSeconds * 1000);
+      }
       setMessages((current) => [
         ...current,
         {
@@ -300,8 +321,13 @@ export default function ResearchAssistant({
                   }
                 }}
               />
-              <button type="submit" aria-label="Send question" title="Send question" disabled={!question.trim() || loading}>
-                <ArrowUp aria-hidden="true" />
+              <button
+                type="submit"
+                aria-label={cooldownSeconds > 0 ? `Wait ${cooldownSeconds} seconds` : "Send question"}
+                title={cooldownSeconds > 0 ? `Ready in ${cooldownSeconds}s` : "Send question"}
+                disabled={!question.trim() || loading || cooldownSeconds > 0}
+              >
+                {cooldownSeconds > 0 ? <span className="composer-countdown">{cooldownSeconds}</span> : <ArrowUp aria-hidden="true" />}
               </button>
             </div>
           </form>
