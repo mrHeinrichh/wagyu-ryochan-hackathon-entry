@@ -1,4 +1,4 @@
-import { ChevronDown, Database } from "lucide-react";
+import { Database } from "lucide-react";
 import type { DecisionReceipt } from "@/lib/types";
 import { percentText } from "@/lib/format";
 
@@ -41,8 +41,8 @@ function buildCards(receipt: DecisionReceipt): EvidenceCardData[] {
 export default function EvidenceMatrix({ receipt }: { receipt: DecisionReceipt | null }) {
   const cards = receipt ? buildCards(receipt) : [];
   return (
-    <details className="evidence-panel">
-      <summary className="panel-heading compact">
+    <section className="evidence-panel" aria-label="Evidence matrix">
+      <div className="panel-heading compact">
         <span className="panel-heading-title">
           <Database aria-hidden="true" />
           <span>
@@ -50,11 +50,8 @@ export default function EvidenceMatrix({ receipt }: { receipt: DecisionReceipt |
             <strong>Evidence matrix</strong>
           </span>
         </span>
-        <span className="summary-meta">
-          {cards.length} sources
-          <ChevronDown className="chevron" aria-hidden="true" />
-        </span>
-      </summary>
+        <span className="summary-meta">{cards.length} sources</span>
+      </div>
       <div className="evidence-grid">
         {cards.length === 0 ? (
           <div className="empty-state compact-empty">No evidence matrix available.</div>
@@ -71,6 +68,6 @@ export default function EvidenceMatrix({ receipt }: { receipt: DecisionReceipt |
           ))
         )}
       </div>
-    </details>
+    </section>
   );
 }

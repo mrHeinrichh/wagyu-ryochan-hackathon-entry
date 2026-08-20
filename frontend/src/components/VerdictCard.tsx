@@ -1,15 +1,13 @@
-import { Activity, ArrowRight, Database, Gauge } from "lucide-react";
-import type { CSSProperties } from "react";
+import { Activity, ArrowRight } from "lucide-react";
 import type { DecisionReceipt } from "@/lib/types";
 import { percentNumber } from "@/lib/format";
-import { DetailCell } from "./Fragments";
 
 export default function VerdictCard({ receipt }: { receipt: DecisionReceipt }) {
   const verdict = receipt.verdict;
   const layer = receipt.reasoning_layer;
   const signal = layer?.signal || receipt.signal || verdict?.decision || "PENDING";
   const confidence = Number(percentNumber(layer?.confidence ?? receipt.confidence ?? verdict?.confidence)) || 0;
-  const gaugeStyle = { "--confidence": `${confidence}%` } as CSSProperties;
+  const conclusion = receipt.summary.conclusion || layer?.reasoning || receipt.reasoning;
 
   return (
     <article className="verdict-card">
@@ -23,18 +21,13 @@ export default function VerdictCard({ receipt }: { receipt: DecisionReceipt }) {
             <h3>{signal}</h3>
           </div>
         </div>
-        <div
-          className="confidence-gauge"
-          style={gaugeStyle}
-          role="img"
-          aria-label={`${confidence}% confidence`}
-        >
-          <div>
-            <strong>{confidence}%</strong>
-            <span>confidence</span>
-          </div>
+        <div className="confidence-value" aria-label={`${confidence}% confidence`}>
+          <strong>{confidence}%</strong>
+          <span>confidence</span>
         </div>
       </div>
+
+      <p className="verdict-conclusion">{conclusion || "No conclusion returned."}</p>
 
       <div className="next-action">
         <ArrowRight aria-hidden="true" />
@@ -44,21 +37,10 @@ export default function VerdictCard({ receipt }: { receipt: DecisionReceipt }) {
         </div>
       </div>
 
-      <div className="verdict-facts">
-        <DetailCell label="Token" value={layer?.symbol || verdict?.token_symbol || receipt.symbol} />
-        <DetailCell label="Market confirmation" value={layer?.market_confirmation || "-"} />
-        <DetailCell label="Sentiment" value={layer?.sentiment || "-"} />
-        <DetailCell label="Data mode" value={receipt.data_mode} />
-      </div>
-
-      <div className="reasoning-summary">
-        <Gauge aria-hidden="true" />
-        <p>{layer?.reasoning || receipt.reasoning || "No reasoning returned."}</p>
-      </div>
-
-      <div className="tool-summary">
-        <Database aria-hidden="true" />
-        <span>{(layer?.ryo_tools_used || receipt.ryo_tools_used || []).join(", ") || "No RYO tools recorded"}</span>
+      <div className="verdict-context" aria-label="Decision context">
+        <span>{layer?.market_confirmation || "Market pending"}</span>
+        <span>{layer?.sentiment || "Neutral sentiment"}</span>
+        <span>{receipt.data_mode}</span>
       </div>
     </article>
   );

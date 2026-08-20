@@ -1,6 +1,8 @@
 // Typed fetch client for the Rust backend. Errors are normalized to Error.
 
 import type {
+  ChatRequestBody,
+  ChatResponse,
   DecisionReceipt,
   HealthResponse,
   PulseRequestBody,
@@ -43,6 +45,10 @@ export const api = {
   receipt: (id: string) => request<DecisionReceipt>(`/api/receipts/${encodeURIComponent(id)}`),
   reason: (body: PulseRequestBody) =>
     request<DecisionReceipt>("/reason", { method: "POST", body: JSON.stringify(body) }),
+  demo: (body: PulseRequestBody) =>
+    request<DecisionReceipt>("/api/demo", { method: "POST", body: JSON.stringify({ ...body, demo: true }) }),
+  chat: (body: ChatRequestBody) =>
+    request<ChatResponse>("/api/chat", { method: "POST", body: JSON.stringify(body) }),
   watchlist: () => request<WatchItem[]>("/api/watchlist"),
   addWatch: (body: { symbol: string; interval_minutes: number }) =>
     request<WatchItem>("/api/watchlist", { method: "POST", body: JSON.stringify(body) }),

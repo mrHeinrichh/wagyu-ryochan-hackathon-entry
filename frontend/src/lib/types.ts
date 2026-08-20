@@ -19,6 +19,7 @@ export interface HealthResponse {
   defillama_enabled: boolean;
   dexscreener_enabled: boolean;
   watch_loop_enabled: boolean;
+  persistence: string;
 }
 
 export interface TokenInfo {
@@ -26,6 +27,28 @@ export interface TokenInfo {
   name: string;
   default_peers: string[];
   market_cap_rank?: number;
+  image_url?: string;
+}
+
+export type ChatRole = "user" | "assistant";
+
+export interface ChatTurn {
+  role: ChatRole;
+  content: string;
+}
+
+export interface ChatRequestBody {
+  receipt_id?: string;
+  question: string;
+  history: ChatTurn[];
+}
+
+export interface ChatResponse {
+  answer: string;
+  suggestions: string[];
+  generated_by: string;
+  receipt_id: string | null;
+  warnings: string[];
 }
 
 export interface StoryScore {
@@ -58,6 +81,8 @@ export interface StoryCard {
   reasoning: string[];
   category: string;
   data_mode: string;
+  requires_attention: boolean;
+  attention_reason: string | null;
 }
 
 export interface RankedSection {
@@ -102,6 +127,45 @@ export interface ReasoningLayerOutput {
   market_confirmation: string;
   timestamp: string;
   run_id: string;
+}
+
+export interface DecisionChainStep {
+  key: string;
+  label: string;
+  detail: string;
+  status: string;
+  source: string;
+}
+
+export interface PracticePlan {
+  label: string;
+  status: string;
+  stance: string;
+  entry_condition: string;
+  invalidation: string;
+  stop_method: string;
+  target: string;
+  risk_budget_pct: number;
+  sizing_rule: string;
+  timeframe: string;
+  basis: string;
+  data_mode: string;
+}
+
+export interface RegionSignal {
+  region: string;
+  sentiment: string;
+  story_count: number;
+  average_impact: number | null;
+  position_changing_count: number;
+  coverage: string;
+}
+
+export interface RegionalConvergence {
+  regime: string;
+  summary: string;
+  strongest_disagreement: string;
+  signals: RegionSignal[];
 }
 
 export interface SourceAvailability {
@@ -152,6 +216,10 @@ export interface DecisionReceipt {
   ryo_tools_used: string[];
   unavailable_data: string[];
   next_action: string;
+  decision_chain: DecisionChainStep[];
+  invalidation: string;
+  practice_plan: PracticePlan;
+  regional_convergence: RegionalConvergence;
   reasoning_layer: ReasoningLayerOutput;
   summary: ReceiptSummary;
   verdict: ReasoningVerdict;
@@ -193,4 +261,6 @@ export interface PulseRequestBody {
   regions: string[];
   sources: string[];
   thesis: string;
+  risk_budget_pct: number;
+  demo?: boolean;
 }

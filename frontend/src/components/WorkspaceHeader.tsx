@@ -1,40 +1,49 @@
-import { Activity, Database, FlaskConical, LoaderCircle } from "lucide-react";
+import { Activity, BookOpen, FlaskConical, LoaderCircle, Map } from "lucide-react";
 import type { HealthResponse, RunMode } from "@/lib/types";
+import ThemeSwitch from "./ThemeSwitch";
 
 interface WorkspaceHeaderProps {
   health: HealthResponse | null;
   running: boolean;
   mode: RunMode | null;
+  onStartTour: () => void;
+  onOpenFaq: () => void;
 }
 
-export default function WorkspaceHeader({ health, running, mode }: WorkspaceHeaderProps) {
-  const ryoLabel = health?.ryo_configured
-    ? "RYO live"
-    : health?.ryo_mock_enabled
-      ? "RYO simulation"
-      : "RYO unavailable";
-  const ryoTone = health?.ryo_configured ? "ok" : health?.ryo_mock_enabled ? "warn" : "bad";
-  const runLabel = running ? "Analyzing" : mode ? `${mode.status} / ${mode.mode}` : "Ready";
+export default function WorkspaceHeader({ health, running, mode, onStartTour, onOpenFaq }: WorkspaceHeaderProps) {
+  const status = running
+    ? { label: "Analyzing", tone: "running", icon: LoaderCircle }
+    : mode?.status === "unavailable"
+      ? { label: "Run unavailable", tone: "bad", icon: Activity }
+      : health?.ryo_configured
+        ? { label: "Live sources", tone: "ok", icon: Activity }
+        : health?.ryo_mock_enabled
+          ? { label: "Demo mode", tone: "warn", icon: FlaskConical }
+          : { label: health ? "RYO key needed" : "Connecting", tone: "warn", icon: Activity };
+  const StatusIcon = status.icon;
 
   return (
     <header className="workspace-header">
       <div className="workspace-title">
-        <p className="eyebrow">Global token news pulse</p>
-        <h2>Market intelligence</h2>
+        <p className="eyebrow">Research workspace</p>
+        <h2>Global market pulse</h2>
       </div>
-      <div className="workspace-status" aria-label="Workspace status">
-        <span className={`status-chip ${health?.status === "ok" ? "ok" : "warn"}`}>
-          <Activity aria-hidden="true" />
-          Backend {health?.status ?? "checking"}
+      <div className="workspace-actions">
+        <div className="workspace-help-actions">
+          <button type="button" className="header-action" onClick={onOpenFaq}>
+            <BookOpen aria-hidden="true" />
+            <span>FAQ</span>
+          </button>
+          <button type="button" className="header-action" onClick={onStartTour}>
+            <Map aria-hidden="true" />
+            <span>Tour</span>
+          </button>
+        </div>
+        <span className={`workspace-live ${status.tone}`} aria-live="polite">
+          <StatusIcon className={running ? "spin" : undefined} aria-hidden="true" />
+          {status.label}
         </span>
-        <span className={`status-chip ${ryoTone}`}>
-          {health?.ryo_mock_enabled ? <FlaskConical aria-hidden="true" /> : <Database aria-hidden="true" />}
-          {ryoLabel}
-        </span>
-        <span className={`status-chip ${running ? "running" : "neutral"}`} aria-live="polite">
-          {running ? <LoaderCircle className="spin" aria-hidden="true" /> : <Activity aria-hidden="true" />}
-          {runLabel}
-        </span>
+        <ThemeSwitch />
       </div>
     </header>
   );

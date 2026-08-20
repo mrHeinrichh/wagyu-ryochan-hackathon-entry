@@ -13,7 +13,6 @@ import { useRef } from "react";
 import type { HealthResponse, ReceiptListItem } from "@/lib/types";
 import { percentText, shortDate } from "@/lib/format";
 import { useAppStore } from "@/store/app";
-import ThemeSwitch from "./ThemeSwitch";
 
 type Klass = "ok" | "warn" | "bad";
 
@@ -26,6 +25,7 @@ function healthLines(health: HealthResponse | null): [string, string, Klass][] {
       : ["missing key", "bad"];
   return [
     ["Backend", health.status, health.status === "ok" ? "ok" : "warn"],
+    ["Receipts", health.persistence, health.persistence === "sqlite" ? "ok" : "warn"],
     ["RYO MCP", ryoStatus[0], ryoStatus[1]],
     ["Tavily", health.tavily_configured ? "ready" : "missing key", health.tavily_configured ? "ok" : "bad"],
     ["OpenAI", health.openai_configured ? "ready" : "missing key", health.openai_configured ? "ok" : "bad"],
@@ -59,11 +59,13 @@ export default function Sidebar({ health, healthError, history, onOpenReceipt }:
       <div className="rail-brand-row">
         <div className="brand-block">
           <div className="brand-mark">
-            <Image src="/assets/ryo-mascot.png" alt="Wagyu" width={44} height={44} priority />
+            <Image src="/assets/ryo-avatar.webp" alt="RYO-CHAN" width={48} height={48} priority />
           </div>
           <div className="brand-copy">
-            <h1>Wagyu</h1>
-            <p>Token news pulse</p>
+            <h1>
+              RYO-<span>CHAN</span>
+            </h1>
+            <p>Global Pulse</p>
           </div>
         </div>
         <button
@@ -76,8 +78,6 @@ export default function Sidebar({ health, healthError, history, onOpenReceipt }:
           {collapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
         </button>
       </div>
-
-      <ThemeSwitch />
 
       <details className="rail-section connections-section">
         <summary>
@@ -144,6 +144,14 @@ export default function Sidebar({ health, healthError, history, onOpenReceipt }:
           )}
         </div>
       </details>
+
+      <div className="rail-footer">
+        <Image src="/assets/ryo-digital-mark.png" alt="" width={28} height={28} />
+        <span>
+          <small>Powered by</small>
+          <strong>RYO Digital</strong>
+        </span>
+      </div>
     </aside>
   );
 }

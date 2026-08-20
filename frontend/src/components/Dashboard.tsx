@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ChevronDown, Layers3, LoaderCircle, Search } from "lucide-react";
 import { api, type TokensResponse } from "@/lib/api";
 import { findCard } from "@/lib/receipt";
 import type {
@@ -20,6 +21,10 @@ import ReceiptDetail from "./ReceiptDetail";
 import EvidenceMatrix from "./EvidenceMatrix";
 import WorkspaceHeader from "./WorkspaceHeader";
 import DecisionCharts from "./DecisionCharts";
+import SourceHealth from "./SourceHealth";
+import ProductTour from "./ProductTour";
+import ResearchAssistant, { type AssistantTab } from "./ResearchAssistant";
+import ResultViewControls, { type ResultView } from "./ResultViewControls";
 
 export default function Dashboard() {
   const receipt = useAppStore((s) => s.currentReceipt);
@@ -39,6 +44,10 @@ export default function Dashboard() {
   const [feedMode, setFeedMode] = useState<RunMode | null>(null);
   const [feedError, setFeedError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantTab, setAssistantTab] = useState<AssistantTab>("chat");
+  const [resultView, setResultView] = useState<ResultView>("split");
 
   const loadHistory = useCallback(async () => {
     try {
@@ -80,6 +89,18 @@ export default function Dashboard() {
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
+  useEffect(() => {
+    const savedView = window.localStorage.getItem("pulse-result-view");
+    if (savedView === "split" || savedView === "decision" || savedView === "news") {
+      setResultView(savedView);
+    }
+  }, []);
+
+  const changeResultView = useCallback((view: ResultView) => {
+    setResultView(view);
+    window.localStorage.setItem("pulse-result-view", view);
+  }, []);
+
   const runPulse = useCallback(
     async (body: PulseRequestBody) => {
       setRunning(true);
@@ -89,6 +110,27 @@ export default function Dashboard() {
         const result = await api.reason(body);
         setReceipt(result);
         setFeedMode({ status: result.status, mode: result.data_mode });
+        await loadHistory();
+      } catch (error) {
+        setFeedMode({ status: "unavailable", mode: "failed" });
+        setFeedError((error as Error).message);
+      } finally {
+        setRunning(false);
+      }
+    },
+    [setReceipt, loadHistory],
+  );
+
+  const runDemo = useCallback(
+    async (body: PulseRequestBody) => {
+      setRunning(true);
+      setFeedError(null);
+      setFeedMode({ status: "partial", mode: "simulated" });
+      try {
+        const result = await api.demo(body);
+        setReceipt(result);
+        setFeedMode({ status: result.status, mode: result.data_mode });
+        setNotice("Sample receipt loaded. Every input is labelled simulated.");
         await loadHistory();
       } catch (error) {
         setFeedMode({ status: "unavailable", mode: "failed" });
@@ -112,6 +154,11 @@ export default function Dashboard() {
     },
     [setReceipt],
   );
+
+  useEffect(() => {
+    const receiptId = new URLSearchParams(window.location.search).get("receipt");
+    if (receiptId) openReceipt(receiptId);
+  }, [openReceipt]);
 
   const addWatch = useCallback(
     async (symbol: string) => {
@@ -142,7 +189,9 @@ export default function Dashboard() {
   const selectedCard = receipt ? findCard(receipt, selectedCardId) : undefined;
 
   return (
-    <div className={sidebarCollapsed ? "app-shell sidebar-collapsed" : "app-shell"}>
+    <div
+      className={`${sidebarCollapsed ? "app-shell sidebar-collapsed" : "app-shell"}${assistantOpen ? " assistant-open" : ""}`}
+    >
       <a className="skip-link" href="#main-workbench">
         Skip to workspace
       </a>
@@ -153,7 +202,20 @@ export default function Dashboard() {
         onOpenReceipt={openReceipt}
       />
       <main id="main-workbench" className="workbench" tabIndex={-1}>
-        <WorkspaceHeader health={health} running={running} mode={feedMode} />
+        <WorkspaceHeader
+          health={health}
+          running={running}
+          mode={feedMode}
+          onStartTour={() => {
+            setAssistantOpen(false);
+            setTourOpen(true);
+          }}
+          onOpenFaq={() => {
+            setTourOpen(false);
+            setAssistantTab("faq");
+            setAssistantOpen(true);
+          }}
+        />
         <ControlPanel
           tokens={tokens}
           tokenCatalog={tokenCatalog}
@@ -162,21 +224,78 @@ export default function Dashboard() {
           watchlist={watchlist}
           running={running}
           onRun={runPulse}
+          onDemo={runDemo}
           onWatch={addWatch}
           onRemoveWatch={removeWatch}
         />
-        <div className="workspace-grid">
-          <div className="primary-stack">
-            <Feed receipt={receipt} mode={feedMode} error={feedError} />
-            <DecisionCharts receipt={receipt} card={selectedCard} />
-          </div>
-          <ReceiptDetail receipt={receipt} card={selectedCard} />
-        </div>
-        <EvidenceMatrix receipt={receipt} />
+        {!receipt && !feedError ? (
+          <section className="start-state" aria-live="polite" data-tour="empty-results">
+            <span className="start-state-icon">
+              {running ? <LoaderCircle className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />}
+            </span>
+            <div>
+              <h2>{running ? "Building your pulse" : "Ready for a market pulse"}</h2>
+              <p>
+                {running
+                  ? "Checking current news and market evidence."
+                  : "Choose a token and analyze the latest evidence."}
+              </p>
+            </div>
+          </section>
+        ) : (
+          <>
+            <ResultViewControls value={resultView} onChange={changeResultView} />
+            <div className={`result-grid view-${resultView}`} key={receipt?.id || "error-result"}>
+              {resultView !== "news" ? (
+                <ReceiptDetail
+                  receipt={receipt}
+                  card={selectedCard}
+                  onNotice={setNotice}
+                  onCollapse={() => changeResultView("news")}
+                />
+              ) : null}
+              {resultView !== "decision" ? (
+                <Feed
+                  receipt={receipt}
+                  mode={feedMode}
+                  error={feedError}
+                  onCollapse={() => changeResultView("decision")}
+                />
+              ) : null}
+            </div>
+            {receipt ? (
+              <details className="research-details">
+                <summary>
+                  <span className="summary-title">
+                    <Layers3 aria-hidden="true" />
+                    Research details
+                  </span>
+                  <span className="summary-meta">
+                    Charts, sources and receipt
+                    <ChevronDown className="chevron" aria-hidden="true" />
+                  </span>
+                </summary>
+                <div className="research-details-body">
+                  <SourceHealth receipt={receipt} />
+                  <DecisionCharts receipt={receipt} card={selectedCard} />
+                  <EvidenceMatrix receipt={receipt} />
+                </div>
+              </details>
+            ) : null}
+          </>
+        )}
       </main>
       <div className={notice ? "toast visible" : "toast"} role="status" aria-live="polite">
         {notice}
       </div>
+      <ResearchAssistant
+        receipt={receipt}
+        open={assistantOpen}
+        tab={assistantTab}
+        onOpenChange={setAssistantOpen}
+        onTabChange={setAssistantTab}
+      />
+      <ProductTour open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   );
 }
