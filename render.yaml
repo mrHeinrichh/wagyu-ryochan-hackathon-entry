@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: ryo-global-token-pulse-api
+    runtime: rust
+    plan: free
+    region: singapore
+    branch: master
+    rootDir: backend
+    buildCommand: cargo build --release --locked
+    startCommand: ./target/release/global-token-news-pulse
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: APP_MOCK_RYO
+        value: "true"
+      - key: APP_DB_PATH
+        value: /tmp/global-token-news-pulse/pulse.db
+      - key: APP_ENABLE_WATCH_LOOP
+        value: "false"
+      - key: DEFILLAMA_ENABLED
+        value: "true"
+      - key: DEXSCREENER_ENABLED
+        value: "false"
+      - key: OPENAI_MODEL
+        value: gpt-5.6-terra
+      - key: RUST_LOG
+        value: global_token_news_pulse=info,tower_http=warn
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: COINGECKO_DEMO_API_KEY
+        sync: false

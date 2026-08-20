@@ -59,7 +59,7 @@ async fn main() {
     let static_dir = format!("{}/../frontend/out", env!("CARGO_MANIFEST_DIR"));
     let app = handlers::router(state, static_dir);
 
-    let addr: SocketAddr = ([127, 0, 0, 1], config.port).into();
+    let addr: SocketAddr = ([0, 0, 0, 0], config.port).into();
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("bind local server");
