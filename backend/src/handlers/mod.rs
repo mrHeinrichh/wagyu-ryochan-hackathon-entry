@@ -6,8 +6,8 @@
 
 use axum::{
     Json, Router,
-    extract::{Path, State},
-    http::StatusCode,
+    extract::{DefaultBodyLimit, Path, State},
+    http::{HeaderMap, StatusCode},
     routing::{delete, get, post},
 };
 use chrono::{Duration as ChronoDuration, Utc};
@@ -19,11 +19,12 @@ use tower_http::{
 };
 
 use crate::domain::{
-    ChatRequest, ChatResponse, DecisionReceipt, HealthResponse, PulseRequest, ReceiptListItem,
-    WatchItem, WatchRequest, default_tokens,
+    ChatRequest, ChatResponse, DecisionReceipt, GuardrailHealth, HealthResponse, PulseRequest,
+    ReceiptListItem, WatchItem, WatchRequest, default_tokens,
 };
 use crate::error::ApiError;
 use crate::reasoning::{build_pulse, normalize_symbol};
+use crate::safety::GuardAction;
 use crate::services::assistant::answer_chat;
 use crate::services::coingecko::latest_tokens;
 use crate::services::ryo::ryo_get;
@@ -49,6 +50,7 @@ pub(crate) fn router(state: AppState, static_dir: String) -> Router {
         .route("/api/watchlist", get(list_watchlist).post(add_watchlist))
         .route("/api/watchlist/{symbol}", delete(remove_watchlist))
         .fallback_service(ServeDir::new(static_dir).append_index_html_on_directories(true))
+        .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
@@ -62,6 +64,7 @@ pub(crate) fn router(state: AppState, static_dir: String) -> Router {
 /// Answer a product or receipt question while keeping missing evidence explicit.
 async fn chat(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(mut request): Json<ChatRequest>,
 ) -> Result<Json<ChatResponse>, ApiError> {
     request.question = request.question.trim().to_string();
@@ -79,6 +82,7 @@ async fn chat(
             "Chat questions must be 800 characters or fewer.",
         ));
     }
+    state.safety.check_request(GuardAction::Chat, &headers)?;
 
     let receipt = if let Some(receipt_id) = request.receipt_id.as_deref() {
         let receipts = state.receipts.read().await;
@@ -117,6 +121,14 @@ async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
         dexscreener_enabled: state.config.dexscreener_enabled,
         watch_loop_enabled: state.config.watch_loop_enabled,
         persistence: "sqlite",
+        guardrails: GuardrailHealth {
+            analysis_cooldown_seconds: state.config.analysis_cooldown_seconds,
+            analysis_limit_per_minute: state.config.analysis_rate_limit_per_minute,
+            chat_cooldown_seconds: state.config.chat_cooldown_seconds,
+            chat_limit_per_minute: state.config.chat_rate_limit_per_minute,
+            ai_limit_per_minute: state.config.ai_rate_limit_per_minute,
+            ai_max_concurrency: state.config.ai_max_concurrency,
+        },
     })
 }
 
@@ -178,16 +190,22 @@ async fn ryo_tools(State(state): State<AppState>) -> Result<Json<Value>, ApiErro
 /// Run a reasoning pass and store the receipt at the front of history.
 async fn create_pulse(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(request): Json<PulseRequest>,
 ) -> Result<Json<DecisionReceipt>, ApiError> {
+    state
+        .safety
+        .check_request(GuardAction::Analysis, &headers)?;
     store_pulse(&state, request).await.map(Json)
 }
 
 /// Run the deterministic, fully labelled sample without external API keys.
 async fn create_demo(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(mut request): Json<PulseRequest>,
 ) -> Result<Json<DecisionReceipt>, ApiError> {
+    state.safety.check_request(GuardAction::Demo, &headers)?;
     request.demo = true;
     store_pulse(&state, request).await.map(Json)
 }
@@ -261,8 +279,12 @@ async fn list_watchlist(State(state): State<AppState>) -> Json<Vec<WatchItem>> {
 /// Add or replace a watched token, clamping the interval to 5-360 minutes.
 async fn add_watchlist(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(request): Json<WatchRequest>,
 ) -> Result<Json<WatchItem>, ApiError> {
+    state
+        .safety
+        .check_request(GuardAction::Watchlist, &headers)?;
     let symbol = normalize_symbol(&request.symbol)?;
     let interval_minutes = request.interval_minutes.unwrap_or(15).clamp(5, 360);
     let now = Utc::now();
@@ -291,8 +313,12 @@ async fn add_watchlist(
 /// Remove a watched token by symbol.
 async fn remove_watchlist(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(symbol): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
+    state
+        .safety
+        .check_request(GuardAction::Watchlist, &headers)?;
     let symbol = normalize_symbol(&symbol)?;
     state.storage.delete_watch_item(&symbol).map_err(|error| {
         ApiError::new(

@@ -13,6 +13,7 @@ use tokio::sync::RwLock;
 
 use crate::config::Config;
 use crate::domain::{DecisionReceipt, NewsStory, TokenInfo, WatchItem};
+use crate::safety::SafetyNet;
 use crate::storage::Persistence;
 
 /// Everything the handlers and background loop need to do their work.
@@ -25,6 +26,7 @@ pub(crate) struct AppState {
     pub(crate) storage: Arc<Persistence>,
     pub(crate) news_cache: Arc<RwLock<HashMap<String, CacheEntry<Vec<NewsStory>>>>>,
     pub(crate) token_cache: Arc<RwLock<Option<CacheEntry<Vec<TokenInfo>>>>>,
+    pub(crate) safety: SafetyNet,
 }
 
 impl AppState {
@@ -33,6 +35,7 @@ impl AppState {
         let storage = Persistence::open(&config.database_path)?;
         let receipts = storage.load_receipts(100)?;
         let watchlist = storage.load_watchlist()?;
+        let safety = SafetyNet::new(&config);
         Ok(Self {
             config,
             client,
@@ -41,6 +44,7 @@ impl AppState {
             storage: Arc::new(storage),
             news_cache: Arc::new(RwLock::new(HashMap::new())),
             token_cache: Arc::new(RwLock::new(None)),
+            safety,
         })
     }
 }

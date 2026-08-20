@@ -112,6 +112,7 @@ backend/            Rust crate (Axum API + reasoning pipeline)
     config.rs       environment-driven configuration
     state.rs        shared AppState and the news cache entry
     storage.rs      SQLite receipt/watchlist persistence
+    safety.rs       cooldowns, quotas, AI budget and concurrency controls
     error.rs        the shared ApiError type
     util.rs         small dependency-free helpers
     watch.rs        optional background watch loop
@@ -165,6 +166,15 @@ for final judging or present it as real RYO confirmation.
 Receipts and watchlists are stored at `backend/data/pulse.db` by default. Set
 `APP_DB_PATH` to override it.
 
+Cost and abuse controls are enabled by default. Analysis is limited to 6
+requests per client per minute with a 12-second cooldown; chat is limited to 12
+requests per client per minute with a 2-second cooldown. OpenAI is capped at 30
+calls per minute and 2 concurrent calls across the service. All values can be
+tuned with the `APP_*_RATE_LIMIT_*`, `APP_*_COOLDOWN_SECONDS`, and
+`APP_AI_MAX_CONCURRENCY` variables documented in `backend/.env.example`.
+Rate-limited responses use HTTP `429`, include `Retry-After`, and never start an
+upstream AI call.
+
 Install frontend dependencies once:
 
 ```bash
@@ -213,7 +223,8 @@ http://127.0.0.1:8788
 
 ### `GET /health`
 
-Returns backend, RYO, Tavily, OpenAI, optional source, and watch-loop status.
+Returns backend, RYO, Tavily, OpenAI, optional source, watch-loop, and active
+guardrail configuration status.
 
 ### `GET /api/tokens`
 
@@ -276,7 +287,9 @@ Answers a product or receipt question using the configured OpenAI model and a
 compact copy of the selected receipt. The assistant is instructed not to add
 market facts that are absent from the receipt. If OpenAI is unavailable, the
 endpoint returns a deterministic receipt summary with a warning instead of
-breaking the chat.
+breaking the chat. AI inputs treat headlines and user text as untrusted data,
+model output is length-bounded, and execution-style directions are rejected in
+favor of the deterministic research-only fallback.
 
 ```json
 {

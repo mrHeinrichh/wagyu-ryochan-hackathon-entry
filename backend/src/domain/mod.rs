@@ -15,6 +15,7 @@ pub(crate) use receipt::{
     RegionalConvergence, RyoToolEvidence, SourceAvailability, StoryCard, StoryScore, WatchItem,
 };
 pub(crate) use requests::{
-    ChatRequest, ChatResponse, ChatTurn, HealthResponse, PulseRequest, WatchRequest,
+    ChatRequest, ChatResponse, ChatTurn, GuardrailHealth, HealthResponse, PulseRequest,
+    WatchRequest,
 };
 pub(crate) use tokens::{TokenInfo, default_tokens};

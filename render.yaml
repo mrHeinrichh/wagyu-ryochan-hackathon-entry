@@ -23,6 +23,22 @@ services:
         value: "false"
       - key: OPENAI_MODEL
         value: gpt-5.6-terra
+      - key: APP_ANALYSIS_COOLDOWN_SECONDS
+        value: "12"
+      - key: APP_ANALYSIS_RATE_LIMIT_PER_MINUTE
+        value: "6"
+      - key: APP_ANALYSIS_GLOBAL_RATE_LIMIT_PER_MINUTE
+        value: "40"
+      - key: APP_CHAT_COOLDOWN_SECONDS
+        value: "2"
+      - key: APP_CHAT_RATE_LIMIT_PER_MINUTE
+        value: "12"
+      - key: APP_CHAT_GLOBAL_RATE_LIMIT_PER_MINUTE
+        value: "120"
+      - key: APP_AI_RATE_LIMIT_PER_MINUTE
+        value: "30"
+      - key: APP_AI_MAX_CONCURRENCY
+        value: "2"
       - key: RUST_LOG
         value: global_token_news_pulse=info,tower_http=warn
       - key: OPENAI_API_KEY

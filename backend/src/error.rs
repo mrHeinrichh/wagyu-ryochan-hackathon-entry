@@ -6,7 +6,7 @@
 
 use axum::{
     Json,
-    http::StatusCode,
+    http::{HeaderValue, StatusCode, header::RETRY_AFTER},
     response::{IntoResponse, Response},
 };
 use serde_json::{Value, json};
@@ -18,6 +18,7 @@ pub(crate) struct ApiError {
     pub(crate) code: &'static str,
     pub(crate) message: String,
     pub(crate) detail: Option<Value>,
+    pub(crate) retry_after_seconds: Option<u64>,
 }
 
 impl ApiError {
@@ -28,12 +29,18 @@ impl ApiError {
             code,
             message: message.into(),
             detail: None,
+            retry_after_seconds: None,
         }
     }
 
     /// Attach a structured detail payload (for example an upstream body).
     pub(crate) fn with_detail(mut self, detail: Value) -> Self {
         self.detail = Some(detail);
+        self
+    }
+
+    pub(crate) fn with_retry_after(mut self, seconds: u64) -> Self {
+        self.retry_after_seconds = Some(seconds.max(1));
         self
     }
 }
@@ -45,8 +52,15 @@ impl IntoResponse for ApiError {
                 "code": self.code,
                 "message": self.message,
                 "detail": self.detail,
+                "retry_after_seconds": self.retry_after_seconds,
             }
         });
-        (self.status, Json(body)).into_response()
+        let mut response = (self.status, Json(body)).into_response();
+        if let Some(seconds) = self.retry_after_seconds
+            && let Ok(value) = HeaderValue::from_str(&seconds.to_string())
+        {
+            response.headers_mut().insert(RETRY_AFTER, value);
+        }
+        response
     }
 }

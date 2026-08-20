@@ -75,4 +75,15 @@ pub(crate) struct HealthResponse {
     pub(crate) dexscreener_enabled: bool,
     pub(crate) watch_loop_enabled: bool,
     pub(crate) persistence: &'static str,
+    pub(crate) guardrails: GuardrailHealth,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub(crate) struct GuardrailHealth {
+    pub(crate) analysis_cooldown_seconds: u64,
+    pub(crate) analysis_limit_per_minute: usize,
+    pub(crate) chat_cooldown_seconds: u64,
+    pub(crate) chat_limit_per_minute: usize,
+    pub(crate) ai_limit_per_minute: usize,
+    pub(crate) ai_max_concurrency: usize,
 }

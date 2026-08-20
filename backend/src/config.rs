@@ -22,6 +22,14 @@ pub(crate) struct Config {
     pub(crate) database_path: String,
     pub(crate) port: u16,
     pub(crate) watch_loop_enabled: bool,
+    pub(crate) analysis_cooldown_seconds: u64,
+    pub(crate) chat_cooldown_seconds: u64,
+    pub(crate) analysis_rate_limit_per_minute: usize,
+    pub(crate) analysis_global_rate_limit_per_minute: usize,
+    pub(crate) chat_rate_limit_per_minute: usize,
+    pub(crate) chat_global_rate_limit_per_minute: usize,
+    pub(crate) ai_rate_limit_per_minute: usize,
+    pub(crate) ai_max_concurrency: usize,
 }
 
 impl Config {
@@ -56,6 +64,29 @@ impl Config {
                 .and_then(|value| value.parse::<u16>().ok())
                 .unwrap_or(8788),
             watch_loop_enabled: env_bool("APP_ENABLE_WATCH_LOOP", false),
+            analysis_cooldown_seconds: env_number("APP_ANALYSIS_COOLDOWN_SECONDS", 12, 1, 120),
+            chat_cooldown_seconds: env_number("APP_CHAT_COOLDOWN_SECONDS", 2, 1, 30),
+            analysis_rate_limit_per_minute: env_number(
+                "APP_ANALYSIS_RATE_LIMIT_PER_MINUTE",
+                6,
+                1,
+                120,
+            ),
+            analysis_global_rate_limit_per_minute: env_number(
+                "APP_ANALYSIS_GLOBAL_RATE_LIMIT_PER_MINUTE",
+                40,
+                1,
+                600,
+            ),
+            chat_rate_limit_per_minute: env_number("APP_CHAT_RATE_LIMIT_PER_MINUTE", 12, 1, 240),
+            chat_global_rate_limit_per_minute: env_number(
+                "APP_CHAT_GLOBAL_RATE_LIMIT_PER_MINUTE",
+                120,
+                1,
+                1_000,
+            ),
+            ai_rate_limit_per_minute: env_number("APP_AI_RATE_LIMIT_PER_MINUTE", 30, 1, 600),
+            ai_max_concurrency: env_number("APP_AI_MAX_CONCURRENCY", 2, 1, 16),
         }
     }
 
@@ -90,5 +121,16 @@ fn env_bool(name: &str, default: bool) -> bool {
     env::var(name)
         .ok()
         .map(|value| matches!(value.to_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(default)
+}
+
+fn env_number<T>(name: &str, default: T, min: T, max: T) -> T
+where
+    T: std::str::FromStr + Ord + Copy,
+{
+    env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<T>().ok())
+        .map(|value| value.clamp(min, max))
         .unwrap_or(default)
 }

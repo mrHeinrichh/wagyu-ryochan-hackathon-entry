@@ -20,6 +20,7 @@ mod domain;
 mod error;
 mod handlers;
 mod reasoning;
+mod safety;
 mod services;
 mod state;
 mod storage;
