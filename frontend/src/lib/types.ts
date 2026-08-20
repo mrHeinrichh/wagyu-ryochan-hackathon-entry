@@ -93,6 +93,61 @@ export interface StoryCard {
   data_mode: string;
   requires_attention: boolean;
   attention_reason: string | null;
+  verification?: NewsVerification;
+}
+
+export interface NewsVerification {
+  source_class: string;
+  source_authority: number;
+  credibility_score: number;
+  credibility_label: string;
+  claim_status: string;
+  independent_source_count: number;
+  corroborating_sources: string[];
+  conflicting_sources: string[];
+  primary_source: boolean;
+  explanation: string;
+}
+
+export interface NewsConsensus {
+  credibility_score: number;
+  credibility_label: string;
+  independent_sources: number;
+  primary_sources: number;
+  corroborated_claims: number;
+  single_source_claims: number;
+  conflicting_claims: number;
+  state: string;
+  summary: string;
+}
+
+export interface ScenarioOdds {
+  bullish: number;
+  bearish: number;
+  unclear: number;
+  confidence: number;
+  basis: string;
+  generated_by: string;
+}
+
+export interface DebateArgument {
+  agent: string;
+  thesis: string;
+  evidence: string[];
+  weaknesses: string[];
+}
+
+export interface BullBearDebate {
+  bull: DebateArgument;
+  bear: DebateArgument;
+  judge: {
+    decision: string;
+    confidence: number;
+    rationale: string;
+    decisive_evidence: string;
+    missing_evidence: string[];
+  };
+  generated_by: string;
 }
 
 export interface RankedSection {
@@ -122,6 +177,8 @@ export interface ReasoningVerdict {
   warnings: string[];
   recommended_next_action: string;
   generated_by: string;
+  scenario_odds?: ScenarioOdds;
+  debate?: BullBearDebate;
 }
 
 export interface ReasoningLayerOutput {
@@ -207,6 +264,7 @@ export interface NewsStory {
   region: string | null;
   language: string | null;
   data_mode: string;
+  search_relevance?: number | null;
 }
 
 export interface DecisionReceipt {
@@ -230,6 +288,7 @@ export interface DecisionReceipt {
   invalidation: string;
   practice_plan: PracticePlan;
   regional_convergence: RegionalConvergence;
+  news_consensus?: NewsConsensus;
   reasoning_layer: ReasoningLayerOutput;
   summary: ReceiptSummary;
   verdict: ReasoningVerdict;

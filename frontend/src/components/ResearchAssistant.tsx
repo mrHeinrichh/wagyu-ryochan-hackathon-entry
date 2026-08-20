@@ -54,6 +54,18 @@ const FAQS = [
     answer: "For receipt questions, it receives a compact copy of that receipt and is instructed not to add prices, events, or market facts that are absent from it.",
   },
   {
+    question: "How credible is a news story?",
+    answer: "The checker separates publisher authority from search relevance, then looks for independent domains reporting a materially similar claim, conflicts, a timestamp, and primary-source evidence. The score is confidence in the evidence, not guaranteed truth.",
+  },
+  {
+    question: "What does news consensus mean?",
+    answer: "Consensus means independently owned sources materially agree on the same claim. Repeated copies from one domain do not count, and conflicting or single-source claims remain clearly labelled.",
+  },
+  {
+    question: "Are bull and bear percentages forecasts?",
+    answer: "No. They are evidence-weighted scenarios judged from the current receipt. The unclear percentage and judge confidence show how much uncertainty remains; they are not price targets or promised accuracy.",
+  },
+  {
     question: "What does demo mode contain?",
     answer: "A fully labelled simulated receipt for testing the product flow without external keys. Simulated evidence is never presented as live confirmation.",
   },

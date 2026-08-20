@@ -5,6 +5,7 @@ import VerdictCard from "./VerdictCard";
 import DecisionPath from "./DecisionPath";
 import PracticePlan from "./PracticePlan";
 import ReceiptActions from "./ReceiptActions";
+import ConsensusPanel from "./ConsensusPanel";
 import { DetailCell, Disclosure, ListBlock, RawJson, SourceLink, Warnings } from "./Fragments";
 
 interface ReceiptDetailProps {
@@ -46,6 +47,7 @@ export default function ReceiptDetail({ receipt, card, onNotice, onCollapse }: R
         ) : (
           <div className="receipt-summary">
             <VerdictCard receipt={receipt} />
+            <ConsensusPanel receipt={receipt} />
             <DecisionPath receipt={receipt} />
             <PracticePlan plan={receipt.practice_plan} />
 
@@ -95,6 +97,12 @@ function CardBreakdown({ receipt, card }: { receipt: DecisionReceipt; card: Stor
         <DetailCell label="Sentiment" value={card.sentiment} />
         <DetailCell label="Cluster" value={card.narrative_cluster} />
         <DetailCell label="Source" value={card.source} />
+        <DetailCell label="Source class" value={card.verification?.source_class || "Not checked"} />
+        <DetailCell label="Claim status" value={card.verification?.claim_status || "Not checked"} />
+        <DetailCell
+          label="Independent sources"
+          value={card.verification?.independent_source_count ?? 0}
+        />
         <DetailCell label="Receipt confidence" value={percentText(receipt.confidence)} />
       </div>
       <ListBlock label="Reasoning" items={card.reasoning} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, ExternalLink, Newspaper, PanelRightClose } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ExternalLink, Newspaper, PanelRightClose, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { shortDate } from "@/lib/format";
 import type { DecisionReceipt, NewsStory, RunMode, StoryCard } from "@/lib/types";
 import { useAppStore } from "@/store/app";
@@ -121,6 +121,8 @@ function StoryRow({
   const canOpenSource = Boolean(
     card.url && !card.url.startsWith("about:") && !card.data_mode.includes("simulated"),
   );
+  const verification = card.verification;
+  const verified = verification?.claim_status === "corroborated";
 
   return (
     <details
@@ -142,6 +144,12 @@ function StoryRow({
               </span>
             ) : null}
             <span className="impact-pill">Impact {card.score.impact}</span>
+            {verification ? (
+              <span className={`trust-pill ${verification.claim_status.replaceAll(" ", "-")}`}>
+                {verified ? <CheckCircle2 aria-hidden="true" /> : <ShieldQuestion aria-hidden="true" />}
+                {verification.claim_status} · {verification.independent_source_count} source{verification.independent_source_count === 1 ? "" : "s"}
+              </span>
+            ) : null}
             <span className="cluster-pill">{card.narrative_cluster}</span>
           </span>
           <span className="news-headline">{card.headline}</span>
@@ -198,6 +206,31 @@ function StoryRow({
             <strong>{card.recommendation}</strong>
           </div>
         </div>
+
+        {verification ? (
+          <section className="credibility-check" aria-label="News credibility check">
+            <div className="credibility-heading">
+              <div>
+                {verified ? <ShieldCheck aria-hidden="true" /> : <ShieldQuestion aria-hidden="true" />}
+                <span>Credibility check</span>
+              </div>
+              <strong>{verification.credibility_score}/100 · {verification.credibility_label}</strong>
+            </div>
+            <div className="credibility-facts">
+              <span><small>Original source</small><strong>{card.source}</strong></span>
+              <span><small>Source type</small><strong>{verification.source_class}</strong></span>
+              <span><small>Claim status</small><strong>{verification.claim_status}</strong></span>
+              <span><small>Search relevance</small><strong>{story?.search_relevance ?? "n/a"}{story?.search_relevance != null ? "/100" : ""}</strong></span>
+            </div>
+            <p>{verification.explanation}</p>
+            {verification.corroborating_sources.length ? (
+              <small>Also reported by: {verification.corroborating_sources.join(", ")}</small>
+            ) : null}
+            {verification.conflicting_sources.length ? (
+              <small className="conflict-note">Conflicting coverage: {verification.conflicting_sources.join(", ")}</small>
+            ) : null}
+          </section>
+        ) : null}
 
         {card.reasoning.length > 1 ? (
           <div className="supporting-checks">
